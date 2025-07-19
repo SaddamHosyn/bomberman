@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomber Bear</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico">
+</head>
+
+<body>
+    <div class="preload-images" style="visibility: hidden;">
+        <div style="background-image: url('app/client/images/nalleRight3.png')"></div>
+        <div style="background-image: url('app/client/images/nalleLeft3.png')"></div>
+        <div style="background-image: url('app/client/images/nalleDead.png')"></div>
+        <div style="background-image: url('app/client/images/nalleRight3white.png')"></div>
+        <div style="background-image: url('app/client/images/nalleLeft3white.png')"></div>
+        <div style="background-image: url('app/client/images/burningwall.svg')"></div>
+        <div style="background-image: url('app/client/images/bomb.svg')"></div>
+        <div style="background-image: url('app/client/images/bomborange.svg')"></div>
+        <div style="background-image: url('app/client/images/flamehor.svg')"></div>
+        <div style="background-image: url('app/client/images/flameendsh.svg')"></div>
+        <div style="background-image: url('app/client/images/flamevert.svg')"></div>
+        <div style="background-image: url('app/client/images/flameendsv.svg')"></div>
+    </div>
+
+    <div id="start-menu">
+        <h1>Bomber Bear</h1>
+        <p>Kill all enemies and activate the gate</p>
+        <p>Finish in under 2 minutes with many lives for points</p>
+        <p>5 levels</p>
+        <p>Use arrows and space</p>
+        <button id="start-btn">Start Game</button>
+    </div>
+
+    <div id="game-over-menu">
+        <h1>Game Over</h1>
+        <button id="restart-btn-game-over">Restart</button>
+    </div>
+
+    <div id="victory">
+        <h1 class="victory-text">Victory!</h1>
+        <p class="victory-text" id="victory-message">You scored XXXX points with Y lives remaining, you absolute legend!
+        </p>
+        <button class="restart-btn">Restart</button>
+    </div>
+
+    <div id="game-container" ></div>
+    <!-- <script type="module" src="app/server/game.js"></script> -->
+    <script type="module" src="app/client/runGame.js"></script>
+</body>
+
+</html>
