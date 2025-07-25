@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type Player struct {
 	ID          int
 	Name        string
@@ -54,4 +56,48 @@ type Block struct {
 
 type Wall struct {
 	Position Position
+}
+
+type Lobby struct {
+	ID          string                      `json:"id"`
+	Players     map[string]*WebSocketPlayer `json:"players"`
+	MaxPlayers  int                         `json:"maxPlayers"`
+	MinPlayers  int                         `json:"minPlayers"`
+	GameStarted bool                        `json:"gameStarted"`
+	CreatedAt   time.Time                   `json:"createdAt"`
+	Messages    []ChatMessage               `json:"messages"`
+	WaitTimer   int                         `json:"waitTimer"`
+	StartTimer  int                         `json:"startTimer"`
+}
+
+type LobbyUpdate struct {
+	Lobby       *Lobby `json:"lobby"`
+	PlayerCount int    `json:"playerCount"`
+	TimeLeft    int    `json:"timeLeft,omitempty"`
+	Status      string `json:"status"` // "waiting", "starting", "playing"
+}
+
+type PlayerJoinedEvent struct {
+	Player      *WebSocketPlayer `json:"player"`
+	PlayerCount int              `json:"playerCount"`
+	Message     string           `json:"message"`
+}
+
+type PlayerLeftEvent struct {
+	PlayerID    string `json:"playerId"`
+	Nickname    string `json:"nickname"`
+	PlayerCount int    `json:"playerCount"`
+	Message     string `json:"message"`
+}
+
+type GameStartEvent struct {
+	LobbyID   string                      `json:"lobbyId"`
+	Players   map[string]*WebSocketPlayer `json:"players"`
+	Map       [][]int                     `json:"map"`
+	StartTime time.Time                   `json:"startTime"`
+}
+
+type JoinLobbyRequest struct {
+	Nickname string `json:"nickname"`
+	LobbyID  string `json:"lobbyId,omitempty"`
 }
