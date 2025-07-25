@@ -1,15 +1,25 @@
 package models
 
 import (
+	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
+// Main WebSocket player struct - handles both connection and game data
 type WebSocketPlayer struct {
-	Player                // Embed existing Player struct
-	Nickname     string   `json:"nickname"`
-	ConnectionID string   `json:"connectionId"`
-	IsConnected  bool     `json:"isConnected"`
-	PowerUps     []string `json:"powerUps"`
+	Player                       // Embed game Player struct
+	ID           string          `json:"id"`
+	Nickname     string          `json:"nickname"`
+	ConnectionID string          `json:"connectionId"`
+	LobbyID      string          `json:"lobbyId"`
+	Conn         *websocket.Conn `json:"-"` // WebSocket connection
+	Send         chan []byte     `json:"-"` // Send channel
+	IsConnected  bool            `json:"isConnected"`
+	IsActive     bool            `json:"isActive"`
+	JoinedAt     time.Time       `json:"joinedAt"`
+	PowerUps     []string        `json:"powerUps"`
 }
 
 type ChatMessage struct {
@@ -30,24 +40,77 @@ type ChatMessageRequest struct {
 	Message string `json:"message"`
 }
 
-type Client struct {
-	ID       string
-	Nickname string
-	LobbyID  string
-	Send     chan []byte
-	IsActive bool
-}
-
 type Hub struct {
-	Clients    map[string]*Client // Using string ID as key
-	Lobbies    map[string]*Lobby
-	Register   chan *Client
-	Unregister chan *Client
+	// Core maps
+	Players map[string]*WebSocketPlayer `json:"players"`
+
+	// Connection management
+	Register   chan *WebSocketPlayer
+	Unregister chan *WebSocketPlayer
 	Broadcast  chan *WebSocketMessage
+
+	// Thread safety
+	Mutex sync.RWMutex `json:"-"`
 }
 
 type ErrorResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Type    string `json:"type"`
+}
+
+type Lobby struct {
+	ID          string                      `json:"id"`
+	Name        string                      `json:"name"`
+	Players     map[string]*WebSocketPlayer `json:"players"`
+	MaxPlayers  int                         `json:"maxPlayers"`
+	MinPlayers  int                         `json:"minPlayers"`
+	GameStarted bool                        `json:"gameStarted"`
+	CreatedAt   time.Time                   `json:"createdAt"`
+	Messages    []ChatMessage               `json:"messages"`
+	WaitTimer   int                         `json:"waitTimer"`
+	StartTimer  int                         `json:"startTimer"`
+	Host        string                      `json:"host"`
+	Status      string                      `json:"status"` // "waiting", "starting", "playing"
+	Mutex       sync.RWMutex                `json:"-"`
+}
+
+type LobbyUpdate struct {
+	Lobby       *Lobby `json:"lobby"`
+	PlayerCount int    `json:"playerCount"`
+	TimeLeft    int    `json:"timeLeft,omitempty"`
+	Status      string `json:"status"` // "waiting", "starting", "playing"
+}
+
+// Request structs
+type JoinLobbyRequest struct {
+	Nickname string `json:"nickname"`
+	LobbyID  string `json:"lobbyId,omitempty"`
+	PlayerID string `json:"playerId"`
+}
+
+type LeaveLobbyRequest struct {
+	PlayerID string `json:"playerId"`
+	LobbyID  string `json:"lobbyId"`
+}
+
+// Event structs
+type PlayerJoinedEvent struct {
+	Player      *WebSocketPlayer `json:"player"`
+	PlayerCount int              `json:"playerCount"`
+	Message     string           `json:"message"`
+}
+
+type PlayerLeftEvent struct {
+	PlayerID    string `json:"playerId"`
+	Nickname    string `json:"nickname"`
+	PlayerCount int    `json:"playerCount"`
+	Message     string `json:"message"`
+}
+
+type GameStartEvent struct {
+	LobbyID   string                      `json:"lobbyId"`
+	Players   map[string]*WebSocketPlayer `json:"players"`
+	Map       [][]int                     `json:"map"`
+	StartTime time.Time                   `json:"startTime"`
 }
