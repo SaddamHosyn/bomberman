@@ -1,0 +1,134 @@
+package backend
+
+import (
+	"math/rand"
+)
+
+const (
+	// TotalDestructibleBlocks defines the exact number of blocks to be placed on the map.
+	TotalDestructibleBlocks = 80
+	// NumSpeedPowerUps defines the number of speed power-ups per game.
+	NumSpeedPowerUps = 3
+	// NumFlamePowerUps defines the number of flame power-ups per game.
+	NumFlamePowerUps = 3
+	// NumBombPowerUps defines the number of bomb power-ups per game.
+	NumBombPowerUps = 3
+)
+
+// GenerateMap creates a new map by calling helper functions to create the walls and blocks.
+func GenerateMap(width, height int) *Map {
+	// Seed the random number generator once.
+
+	walls := GenerateWalls(width, height)
+	blocks := GenerateBlocks(width, height, walls)
+
+	return &Map{
+		Width:  width,
+		Height: height,
+		Walls:  walls,
+		Blocks: blocks,
+	}
+}
+
+// generateWalls creates the indestructible walls in a fixed pattern.
+// This includes the outer border and the inner grid, classic to Bomberman.
+func GenerateWalls(width, height int) []*Wall {
+	var walls []*Wall
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Add outer border walls
+			if y == 0 || y == height-1 || x == 0 || x == width-1 {
+				walls = append(walls, &Wall{Position: Position{X: x, Y: y}})
+			} else if x%2 == 0 && y%2 == 0 {
+				// Add inner grid walls
+				walls = append(walls, &Wall{Position: Position{X: x, Y: y}})
+			}
+		}
+	}
+	return walls
+}
+
+// generateBlocks places a fixed number of destructible blocks and power-ups randomly on the map.
+func GenerateBlocks(width, height int, walls []*Wall) []*Block {
+	// 1. Find all possible positions for blocks.
+	wallMap := make(map[Position]bool)
+	for _, wall := range walls {
+		wallMap[wall.Position] = true
+	}
+
+	availablePositions := []Position{}
+	for y := 1; y < height-1; y++ {
+		for x := 1; x < width-1; x++ {
+			pos := Position{X: x, Y: y}
+			if !wallMap[pos] && !isSpawnArea(x, y, width, height) {
+				availablePositions = append(availablePositions, pos)
+			}
+		}
+	}
+
+	// 2. Shuffle the available positions to randomize block placement.
+	rand.Shuffle(len(availablePositions), func(i, j int) {
+		availablePositions[i], availablePositions[j] = availablePositions[j], availablePositions[i]
+	})
+
+	// 3. Create the list of power-ups to be placed.
+	powerUps := []*PowerUp{}
+	for i := 0; i < NumSpeedPowerUps; i++ {
+		powerUps = append(powerUps, &PowerUp{Type: SpeedUp})
+	}
+	for i := 0; i < NumFlamePowerUps; i++ {
+		powerUps = append(powerUps, &PowerUp{Type: FlameUp})
+	}
+	for i := 0; i < NumBombPowerUps; i++ {
+		powerUps = append(powerUps, &PowerUp{Type: BombUp})
+	}
+
+	// 4. Create the blocks and assign power-ups.
+	var blocks []*Block
+	numBlocks := TotalDestructibleBlocks
+	if numBlocks > len(availablePositions) {
+		numBlocks = len(availablePositions) // Ensure we don't place more blocks than available spots.
+	}
+
+	for i := 0; i < numBlocks; i++ {
+		block := &Block{
+			Position:  availablePositions[i],
+			Destroyed: false,
+		}
+		// Assign a power-up to the first N blocks, where N is the total number of power-ups.
+		if i < len(powerUps) {
+			block.HiddenPowerUp = powerUps[i]
+		}
+		blocks = append(blocks, block)
+	}
+
+	// Shuffle the final block list so power-ups aren't always in the first blocks created.
+	rand.Shuffle(len(blocks), func(i, j int) {
+		blocks[i], blocks[j] = blocks[j], blocks[i]
+	})
+
+	return blocks
+}
+
+// isSpawnArea checks if a position is a player spawn point or an adjacent tile
+// to ensure players have a safe starting zone.
+func isSpawnArea(x, y, width, height int) bool {
+	// Top-left corner
+	if (x == 1 && y == 1) || (x == 1 && y == 2) || (x == 2 && y == 1) {
+		return true
+	}
+	// Top-right corner
+	if (x == width-2 && y == 1) || (x == width-3 && y == 1) || (x == width-2 && y == 2) {
+		return true
+	}
+	// Bottom-left corner
+	if (x == 1 && y == height-2) || (x == 2 && y == height-2) || (x == 1 && y == height-3) {
+		return true
+	}
+	// Bottom-right corner
+	if (x == width-2 && y == height-2) || (x == width-3 && y == height-2) || (x == width-2 && y == height-3) {
+		return true
+	}
+	return false
+}
