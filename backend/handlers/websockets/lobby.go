@@ -21,18 +21,13 @@ var upgrader = websocket.Upgrader{
 
 // LobbyHandler manages all lobby-related WebSocket operations
 type LobbyHandler struct {
-	hub *Hub
-}
-
-// Hub wraps the models.Hub and provides methods
-type Hub struct {
-	*models.Hub
+	hub   *models.Hub
 	lobby *models.Lobby // Single lobby for all players
 }
 
-// NewHub creates a new hub instance
-func NewHub() *Hub {
-	modelsHub := &models.Hub{
+// NewLobbyHandler creates a new lobby handler
+func NewLobbyHandler() *LobbyHandler {
+	hub := &models.Hub{
 		Players:    make(map[string]*models.WebSocketPlayer),
 		Register:   make(chan *models.WebSocketPlayer),
 		Unregister: make(chan *models.WebSocketPlayer),
@@ -55,31 +50,27 @@ func NewHub() *Hub {
 		Status:      "waiting",
 	}
 
-	return &Hub{
-		Hub:   modelsHub,
+	lobbyHandler := &LobbyHandler{
+		hub:   hub,
 		lobby: singleLobby,
 	}
+
+	go lobbyHandler.run()
+	return lobbyHandler
 }
 
-// NewLobbyHandler creates a new lobby handler
-func NewLobbyHandler() *LobbyHandler {
-	hub := NewHub()
-	go hub.Run()
-	return &LobbyHandler{hub: hub}
-}
-
-// Run starts the hub's main event loop
-func (h *Hub) Run() {
+// run starts the hub's main event loop
+func (lh *LobbyHandler) run() {
 	for {
 		select {
-		case player := <-h.Register:
-			h.registerPlayer(player)
+		case player := <-lh.hub.Register:
+			lh.registerPlayer(player)
 
-		case player := <-h.Unregister:
-			h.unregisterPlayer(player)
+		case player := <-lh.hub.Unregister:
+			lh.unregisterPlayer(player)
 
-		case message := <-h.Broadcast:
-			h.broadcastMessage(message)
+		case message := <-lh.hub.Broadcast:
+			lh.broadcastMessage(message)
 		}
 	}
 }
@@ -94,13 +85,12 @@ func (lh *LobbyHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	// Create new player
 	player := &models.WebSocketPlayer{
-		ID:          generatePlayerID(),
+		WebSocketID: generatePlayerID(),
 		Conn:        conn,
 		Send:        make(chan []byte, 256),
 		IsConnected: true,
 		IsActive:    true,
 		JoinedAt:    time.Now(),
-		PowerUps:    make([]string, 0),
 	}
 
 	// Register player with hub
@@ -113,78 +103,78 @@ func (lh *LobbyHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 // Hub Methods
 
-func (h *Hub) registerPlayer(player *models.WebSocketPlayer) {
-	h.Mutex.Lock()
-	defer h.Mutex.Unlock()
+func (lh *LobbyHandler) registerPlayer(player *models.WebSocketPlayer) {
+	lh.hub.Mutex.Lock()
+	defer lh.hub.Mutex.Unlock()
 
-	h.Players[player.ID] = player
-	log.Printf("Player %s connected", player.ID)
+	lh.hub.Players[player.WebSocketID] = player
+	log.Printf("Player %s connected", player.WebSocketID)
 
 	// Automatically add player to the single lobby
-	h.lobby.Mutex.Lock()
-	player.LobbyID = h.lobby.ID
-	h.lobby.Players[player.ID] = player
+	lh.lobby.Mutex.Lock()
+	player.LobbyID = lh.lobby.ID
+	lh.lobby.Players[player.WebSocketID] = player
 
 	// Set first player as host if no host exists
-	if h.lobby.Host == "" {
-		h.lobby.Host = player.ID
+	if lh.lobby.Host == "" {
+		lh.lobby.Host = player.WebSocketID
 	}
-	h.lobby.Mutex.Unlock()
+	lh.lobby.Mutex.Unlock()
 
 	// Send welcome message
 	welcomeMsg := &models.WebSocketMessage{
 		Type: models.MSG_SUCCESS,
 		Payload: map[string]interface{}{
 			"message":     "Connected successfully",
-			"playerId":    player.ID,
-			"lobbyId":     h.lobby.ID,
-			"playerCount": len(h.lobby.Players),
+			"playerId":    player.WebSocketID,
+			"lobbyId":     lh.lobby.ID,
+			"playerCount": len(lh.lobby.Players),
 		},
 	}
-	h.sendToPlayer(player, welcomeMsg)
+	lh.sendToPlayer(player, welcomeMsg)
 
 	// Broadcast player joined to others
-	h.broadcastToLobby("", &models.WebSocketMessage{
+	lh.broadcastToLobby("", &models.WebSocketMessage{
 		Type: models.MSG_PLAYER_JOINED,
 		Payload: &models.PlayerJoinedEvent{
 			Player:      player,
-			PlayerCount: len(h.lobby.Players),
+			PlayerCount: len(lh.lobby.Players),
 			Message:     "Player joined the game",
 		},
 	})
 }
 
-func (h *Hub) unregisterPlayer(player *models.WebSocketPlayer) {
-	h.Mutex.Lock()
-	defer h.Mutex.Unlock()
+func (lh *LobbyHandler) unregisterPlayer(player *models.WebSocketPlayer) {
+	lh.hub.Mutex.Lock()
+	defer lh.hub.Mutex.Unlock()
 
-	if _, exists := h.Players[player.ID]; exists {
+	if _, exists := lh.hub.Players[player.WebSocketID]; exists {
 		// Remove from the single lobby
-		h.lobby.Mutex.Lock()
-		delete(h.lobby.Players, player.ID)
-		playerCount := len(h.lobby.Players)
+		lh.lobby.Mutex.Lock()
+		delete(lh.lobby.Players, player.WebSocketID)
+		playerCount := len(lh.lobby.Players)
 
 		// Reassign host if needed
-		if h.lobby.Host == player.ID && playerCount > 0 {
-			for playerID := range h.lobby.Players {
-				h.lobby.Host = playerID
+		if lh.lobby.Host == player.WebSocketID && playerCount > 0 {
+			for playerID := range lh.lobby.Players {
+				lh.lobby.Host = playerID
 				break
 			}
 		}
-		h.lobby.Mutex.Unlock()
+		lh.lobby.Mutex.Unlock()
 
-		delete(h.Players, player.ID)
+		delete(lh.hub.Players, player.WebSocketID)
 		close(player.Send)
 		player.IsConnected = false
-		log.Printf("Player %s disconnected", player.ID)
+		log.Printf("Player %s disconnected", player.WebSocketID)
 
 		// Broadcast player left to others
 		if playerCount > 0 {
-			h.broadcastToLobby("", &models.WebSocketMessage{
+			lh.broadcastToLobby("", &models.WebSocketMessage{
 				Type: models.MSG_PLAYER_LEFT,
 				Payload: &models.PlayerLeftEvent{
-					PlayerID:    player.ID,
-					Nickname:    player.Nickname,
+					PlayerID:    player.WebSocketID,
+					Nickname:    player.Name,
 					PlayerCount: playerCount,
 					Message:     "Player left the game",
 				},
@@ -194,31 +184,31 @@ func (h *Hub) unregisterPlayer(player *models.WebSocketPlayer) {
 }
 
 // Message Broadcasting
-func (h *Hub) broadcastMessage(message *models.WebSocketMessage) {
+func (lh *LobbyHandler) broadcastMessage(message *models.WebSocketMessage) {
 	// Handle different message types
 	switch message.Type {
 	case models.MSG_CHAT_MESSAGE:
 		// Handle chat messages - broadcast to all players in lobby
-		h.broadcastToLobby("", message)
+		lh.broadcastToLobby("", message)
 	default:
 		// Handle other message types
-		h.broadcastToLobby("", message)
+		lh.broadcastToLobby("", message)
 	}
 }
 
-func (h *Hub) broadcastToLobby(lobbyID string, message *models.WebSocketMessage) {
+func (lh *LobbyHandler) broadcastToLobby(lobbyID string, message *models.WebSocketMessage) {
 	// Use the single lobby (ignore lobbyID since there's only one)
-	lobby := h.lobby
+	lobby := lh.lobby
 
 	lobby.Mutex.RLock()
 	defer lobby.Mutex.RUnlock()
 
 	for _, player := range lobby.Players {
-		h.sendToPlayer(player, message)
+		lh.sendToPlayer(player, message)
 	}
 }
 
-func (h *Hub) sendToPlayer(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
+func (lh *LobbyHandler) sendToPlayer(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
 	if !player.IsConnected {
 		return
 	}
@@ -233,11 +223,11 @@ func (h *Hub) sendToPlayer(player *models.WebSocketPlayer, message *models.WebSo
 	case player.Send <- data:
 	default:
 		close(player.Send)
-		delete(h.Players, player.ID)
+		delete(lh.hub.Players, player.WebSocketID)
 	}
 }
 
-func (h *Hub) sendError(player *models.WebSocketPlayer, errMsg string) {
+func (lh *LobbyHandler) sendError(player *models.WebSocketPlayer, errMsg string) {
 	errorResponse := &models.ErrorResponse{
 		Code:    400,
 		Message: errMsg,
@@ -249,7 +239,7 @@ func (h *Hub) sendError(player *models.WebSocketPlayer, errMsg string) {
 		Payload: errorResponse,
 	}
 
-	h.sendToPlayer(player, message)
+	lh.sendToPlayer(player, message)
 }
 
 // WebSocket Connection Handlers
@@ -328,7 +318,7 @@ func (lh *LobbyHandler) handlePing(player *models.WebSocketPlayer) {
 		Type:    models.MSG_PONG,
 		Payload: map[string]interface{}{"timestamp": time.Now().Unix()},
 	}
-	lh.hub.sendToPlayer(player, pongMsg)
+	lh.sendToPlayer(player, pongMsg)
 }
 
 // Utility Functions
@@ -351,12 +341,12 @@ func randomString(length int) string {
 func (lh *LobbyHandler) GetLobby() *models.Lobby {
 	lh.hub.Mutex.RLock()
 	defer lh.hub.Mutex.RUnlock()
-	return lh.hub.lobby
+	return lh.lobby
 }
 
 // GetPlayerCount returns current player count
 func (lh *LobbyHandler) GetPlayerCount() int {
 	lh.hub.Mutex.RLock()
 	defer lh.hub.Mutex.RUnlock()
-	return len(lh.hub.lobby.Players)
+	return len(lh.lobby.Players)
 }

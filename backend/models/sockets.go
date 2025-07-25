@@ -7,11 +7,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Client represents a WebSocket connection (network level)
+type Client struct {
+	ID       string          `json:"id"`
+	Nickname string          `json:"nickname"`
+	Conn     *websocket.Conn `json:"-"` // WebSocket connection
+	Send     chan []byte     `json:"-"` // Send channel
+	IsActive bool            `json:"isActive"`
+	JoinedAt time.Time       `json:"joinedAt"`
+}
+
 // Main WebSocket player struct - handles both connection and game data
 type WebSocketPlayer struct {
 	Player                       // Embed game Player struct
-	ID           string          `json:"id"`
-	Nickname     string          `json:"nickname"`
+	WebSocketID  string          `json:"webSocketId"` // WebSocket-specific ID (different from game Player.ID)
 	ConnectionID string          `json:"connectionId"`
 	LobbyID      string          `json:"lobbyId"`
 	Conn         *websocket.Conn `json:"-"` // WebSocket connection
@@ -19,7 +28,6 @@ type WebSocketPlayer struct {
 	IsConnected  bool            `json:"isConnected"`
 	IsActive     bool            `json:"isActive"`
 	JoinedAt     time.Time       `json:"joinedAt"`
-	PowerUps     []string        `json:"powerUps"`
 }
 
 type ChatMessage struct {
@@ -41,10 +49,10 @@ type ChatMessageRequest struct {
 }
 
 type Hub struct {
-	// Core maps
+	// Players for lobby system
 	Players map[string]*WebSocketPlayer `json:"players"`
 
-	// Connection management
+	// Connection management for Players (lobby system)
 	Register   chan *WebSocketPlayer
 	Unregister chan *WebSocketPlayer
 	Broadcast  chan *WebSocketMessage
