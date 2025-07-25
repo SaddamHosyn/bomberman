@@ -34,6 +34,13 @@ type GameState struct {
 	Bombs   []*Bomb
 	// Add more fields as needed (e.g., map size, game timer)
 }
+type WebSocketPlayer struct {
+	Player                // Embed existing Player struct
+	Nickname     string   `json:"nickname"`
+	ConnectionID string   `json:"connectionId"`
+	IsConnected  bool     `json:"isConnected"`
+	PowerUps     []string `json:"powerUps"`
+}
 
 type PowerUp struct {
 	Type PowerUpType
