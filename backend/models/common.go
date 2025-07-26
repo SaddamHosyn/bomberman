@@ -7,6 +7,8 @@ const (
 	MSG_LOBBY_UPDATE  = "lobby_update"
 	MSG_PLAYER_JOINED = "player_joined"
 	MSG_PLAYER_LEFT   = "player_left"
+	MSG_LOBBY_STATUS  = "lobby_status"
+	MSG_TIMER_UPDATE  = "timer_update"
 
 	// Chat related messages
 	MSG_CHAT_MESSAGE = "chat_message"
