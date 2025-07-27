@@ -214,8 +214,8 @@ func handleMessage(client *models.Client, message *models.WebSocketMessage, mana
 // handlePing responds to ping messages
 func handlePing(client *models.Client, manager *WebSocketManager) {
 	response := models.WebSocketMessage{
-		Type:    "pong",
-		Payload: map[string]interface{}{"timestamp": time.Now()},
+		Type: "pong",
+		Data: map[string]interface{}{"timestamp": time.Now()},
 	}
 	utils.SendMessage(client, &response)
 }

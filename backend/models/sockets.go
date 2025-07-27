@@ -40,9 +40,10 @@ type ChatMessage struct {
 }
 
 type WebSocketMessage struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+    Type string      `json:"type"`
+    Data interface{} `json:"data"`  // ← Should be "data"
 }
+
 
 type ChatMessageRequest struct {
 	Message string `json:"message"`

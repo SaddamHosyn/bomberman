@@ -19,8 +19,8 @@ var (
 // handleChatMessage processes chat messages
 func handleChatMessage(client *models.Client, message *models.WebSocketMessage, manager *WebSocketManager) {
 	var chatRequest models.ChatMessageRequest
-	payloadBytes, _ := json.Marshal(message.Payload)
-	if err := json.Unmarshal(payloadBytes, &chatRequest); err != nil {
+	DataBytes, _ := json.Marshal(message.Data)
+	if err := json.Unmarshal(DataBytes, &chatRequest); err != nil {
 		utils.SendError(client, "Invalid chat message")
 		return
 	}
@@ -60,7 +60,7 @@ func addChatMessageToGlobal(manager *WebSocketManager, chatMessage models.ChatMe
 	// Create broadcast message
 	broadcastData := models.WebSocketMessage{
 		Type: "chat_message",
-		Payload: map[string]interface{}{
+		Data: map[string]interface{}{
 			"message": chatMessage,
 		},
 	}
@@ -104,7 +104,7 @@ func sendChatHistory(client *models.Client, manager *WebSocketManager) {
 
 	message := models.WebSocketMessage{
 		Type: "chat_history",
-		Payload: map[string]interface{}{
+		Data: map[string]interface{}{
 			"history": history,
 		},
 	}

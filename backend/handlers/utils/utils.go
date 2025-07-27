@@ -83,7 +83,7 @@ func SendMessage(client *models.Client, message *models.WebSocketMessage) {
 func SendError(client *models.Client, errorMsg string) {
 	errorMessage := &models.WebSocketMessage{
 		Type: "error",
-		Payload: map[string]interface{}{
+		Data: map[string]interface{}{
 			"message":   errorMsg,
 			"timestamp": time.Now(),
 		},

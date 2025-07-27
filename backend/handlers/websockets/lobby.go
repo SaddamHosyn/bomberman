@@ -113,7 +113,7 @@ func (lh *LobbyHandler) registerPlayer(player *models.WebSocketPlayer) {
 	// Send welcome message (but don't add to lobby yet - they need to send join_lobby with nickname)
 	welcomeMsg := &models.WebSocketMessage{
 		Type: models.MSG_SUCCESS,
-		Payload: map[string]interface{}{
+		Data: map[string]interface{}{
 			"message":     "Connected successfully - please provide nickname to join lobby",
 			"playerId":    player.WebSocketID,
 			"playerCount": len(lh.lobby.Players),
@@ -150,7 +150,7 @@ func (lh *LobbyHandler) unregisterPlayer(player *models.WebSocketPlayer) {
 		if playerCount > 0 {
 			lh.broadcastToLobby("", &models.WebSocketMessage{
 				Type: models.MSG_PLAYER_LEFT,
-				Payload: &models.PlayerLeftEvent{
+				Data: &models.PlayerLeftEvent{
 					PlayerID:    player.WebSocketID,
 					Nickname:    player.Name,
 					PlayerCount: playerCount,
@@ -213,8 +213,8 @@ func (lh *LobbyHandler) sendError(player *models.WebSocketPlayer, errMsg string)
 	}
 
 	message := &models.WebSocketMessage{
-		Type:    models.MSG_ERROR,
-		Payload: errorResponse,
+		Type: models.MSG_ERROR,
+		Data: errorResponse,
 	}
 
 	lh.sendToPlayer(player, message)
@@ -296,8 +296,8 @@ func (lh *LobbyHandler) handleMessage(player *models.WebSocketPlayer, message *m
 
 func (lh *LobbyHandler) handlePing(player *models.WebSocketPlayer) {
 	pongMsg := &models.WebSocketMessage{
-		Type:    models.MSG_PONG,
-		Payload: map[string]interface{}{"timestamp": time.Now().Unix()},
+		Type: models.MSG_PONG,
+		Data: map[string]interface{}{"timestamp": time.Now().Unix()},
 	}
 	lh.sendToPlayer(player, pongMsg)
 }
@@ -336,14 +336,14 @@ func (lh *LobbyHandler) GetPlayerCount() int {
 func (lh *LobbyHandler) handleJoinLobby(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
 	var joinRequest models.JoinLobbyRequest
 
-	// Parse the payload
-	payloadBytes, err := json.Marshal(message.Payload)
+	// Parse the Data
+	DataBytes, err := json.Marshal(message.Data)
 	if err != nil {
 		lh.sendError(player, "Invalid join request format")
 		return
 	}
 
-	if err := json.Unmarshal(payloadBytes, &joinRequest); err != nil {
+	if err := json.Unmarshal(DataBytes, &joinRequest); err != nil {
 		lh.sendError(player, "Invalid join request data")
 		return
 	}
@@ -386,7 +386,7 @@ func (lh *LobbyHandler) handleJoinLobby(player *models.WebSocketPlayer, message 
 	// Send success response
 	successMsg := &models.WebSocketMessage{
 		Type: models.MSG_SUCCESS,
-		Payload: map[string]interface{}{
+		Data: map[string]interface{}{
 			"message":     "Joined lobby successfully",
 			"playerId":    player.WebSocketID,
 			"nickname":    player.Name,
@@ -399,7 +399,7 @@ func (lh *LobbyHandler) handleJoinLobby(player *models.WebSocketPlayer, message 
 	// Broadcast player joined to others
 	lh.broadcastToLobby("", &models.WebSocketMessage{
 		Type: models.MSG_PLAYER_JOINED,
-		Payload: &models.PlayerJoinedEvent{
+		Data: &models.PlayerJoinedEvent{
 			Player:      player,
 			PlayerCount: len(lh.lobby.Players),
 			Message:     player.Name + " joined the game",
@@ -414,14 +414,14 @@ func (lh *LobbyHandler) handleJoinLobby(player *models.WebSocketPlayer, message 
 func (lh *LobbyHandler) handleChatMessage(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
 	var chatRequest models.ChatMessageRequest
 
-	// Parse the payload
-	payloadBytes, err := json.Marshal(message.Payload)
+	// Parse the Data
+	DataBytes, err := json.Marshal(message.Data)
 	if err != nil {
 		lh.sendError(player, "Invalid chat message format")
 		return
 	}
 
-	if err := json.Unmarshal(payloadBytes, &chatRequest); err != nil {
+	if err := json.Unmarshal(DataBytes, &chatRequest); err != nil {
 		lh.sendError(player, "Invalid chat message data")
 		return
 	}
@@ -453,8 +453,8 @@ func (lh *LobbyHandler) handleChatMessage(player *models.WebSocketPlayer, messag
 
 	// Broadcast to all players in lobby
 	broadcastMsg := &models.WebSocketMessage{
-		Type:    models.MSG_CHAT_MESSAGE,
-		Payload: chatMsg,
+		Type: models.MSG_CHAT_MESSAGE,
+		Data: chatMsg,
 	}
 	lh.broadcastToLobby("", broadcastMsg)
 }
@@ -470,8 +470,8 @@ func (lh *LobbyHandler) handleLobbyStatusRequest(player *models.WebSocketPlayer,
 	lh.lobby.Mutex.RUnlock()
 
 	statusMsg := &models.WebSocketMessage{
-		Type:    models.MSG_LOBBY_STATUS,
-		Payload: statusUpdate,
+		Type: models.MSG_LOBBY_STATUS,
+		Data: statusUpdate,
 	}
 	lh.sendToPlayer(player, statusMsg)
 }
@@ -530,7 +530,7 @@ func (lh *LobbyHandler) startWaitTimer() {
 		// Broadcast timer update
 		updateMsg := &models.WebSocketMessage{
 			Type: models.MSG_LOBBY_UPDATE,
-			Payload: &models.LobbyUpdate{
+			Data: &models.LobbyUpdate{
 				Lobby:       lh.lobby,
 				PlayerCount: currentPlayerCount,
 				TimeLeft:    i,
@@ -569,7 +569,7 @@ func (lh *LobbyHandler) startGameCountdown() {
 		// Broadcast countdown
 		updateMsg := &models.WebSocketMessage{
 			Type: models.MSG_LOBBY_UPDATE,
-			Payload: &models.LobbyUpdate{
+			Data: &models.LobbyUpdate{
 				Lobby:       lh.lobby,
 				PlayerCount: currentPlayerCount,
 				TimeLeft:    i,
@@ -600,8 +600,8 @@ func (lh *LobbyHandler) startGame() {
 
 	// Broadcast game start
 	startMsg := &models.WebSocketMessage{
-		Type:    models.MSG_GAME_START,
-		Payload: gameStartEvent,
+		Type: models.MSG_GAME_START,
+		Data: gameStartEvent,
 	}
 	lh.broadcastToLobby("", startMsg)
 
