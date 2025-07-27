@@ -1,0 +1,348 @@
+/* Bomberman DOM - Game Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+#app {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Nickname Input Screen */
+.nickname-screen {
+    text-align: center;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+    padding: 40px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.game-title {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.game-subtitle {
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+    opacity: 0.8;
+}
+
+.nickname-form {
+    margin-bottom: 20px;
+}
+
+.nickname-input {
+    width: 100%;
+    max-width: 300px;
+    padding: 15px 20px;
+    font-size: 1.1rem;
+    border: none;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    text-align: center;
+}
+
+.nickname-input:focus {
+    outline: none;
+    box-shadow: 0 0 15px rgba(255, 215, 61, 0.5);
+}
+
+.join-button {
+    background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.join-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(238, 90, 36, 0.4);
+}
+
+.join-button:disabled {
+    background: #666;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Waiting Room */
+.waiting-room {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+    padding: 30px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.room-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.room-title {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    color: #ffd93d;
+}
+
+.player-counter {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+}
+
+.timer {
+    font-size: 1.2rem;
+    color: #ff6b6b;
+    font-weight: bold;
+}
+
+.room-content {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 30px;
+    align-items: start;
+}
+
+.players-section {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.players-title {
+    font-size: 1.3rem;
+    margin-bottom: 15px;
+    color: #ffd93d;
+}
+
+.players-list {
+    list-style: none;
+}
+
+.player-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.player-avatar {
+    width: 30px;
+    height: 30px;
+    background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #333;
+}
+
+.player-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.player-status {
+    font-size: 0.9rem;
+    opacity: 0.7;
+}
+
+/* Chat Section */
+.chat-section {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    height: 400px;
+}
+
+.chat-title {
+    font-size: 1.3rem;
+    margin-bottom: 15px;
+    color: #ffd93d;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chat-message {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.message-author {
+    font-weight: bold;
+    color: #ffd93d;
+    font-size: 0.9rem;
+}
+
+.message-text {
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+.message-time {
+    font-size: 0.8rem;
+    opacity: 0.6;
+    margin-top: 2px;
+}
+
+.chat-input-container {
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+}
+
+.chat-input:focus {
+    outline: none;
+    box-shadow: 0 0 10px rgba(255, 215, 61, 0.3);
+}
+
+.send-button {
+    background: linear-gradient(45deg, #00b894, #00a085);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+.send-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 184, 148, 0.3);
+}
+
+.send-button:disabled {
+    background: #666;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .room-content {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .chat-section {
+        height: 300px;
+    }
+    
+    .game-title {
+        font-size: 2rem;
+    }
+    
+    #app {
+        padding: 15px;
+    }
+}
+
+/* Loading and animations */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #ffd93d;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Game status messages */
+.status-message {
+    text-align: center;
+    padding: 15px;
+    margin: 20px 0;
+    border-radius: 10px;
+    font-weight: bold;
+}
+
+.status-info {
+    background: rgba(52, 152, 219, 0.2);
+    border: 1px solid rgba(52, 152, 219, 0.5);
+    color: #3498db;
+}
+
+.status-warning {
+    background: rgba(241, 196, 15, 0.2);
+    border: 1px solid rgba(241, 196, 15, 0.5);
+    color: #f1c40f;
+}
+
+.status-success {
+    background: rgba(46, 204, 113, 0.2);
+    border: 1px solid rgba(46, 204, 113, 0.5);
+    color: #2ecc71;
+}

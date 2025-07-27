@@ -54,7 +54,8 @@ export function createRealNode(vnode) {
     const element = document.createElement(vnode.tag);
     
     // Step 3: Add all the properties (class, id, onclick, etc.)
-    Object.keys(vnode.attrs).forEach(key => {
+    if (vnode.attrs) {
+        Object.keys(vnode.attrs).forEach(key => {
         if (key.startsWith('on') && typeof vnode.attrs[key] === 'function') {
             // Handle events like onclick, onchange
             const eventType = key.slice(2).toLowerCase(); // 'onclick' becomes 'click'
@@ -79,16 +80,32 @@ export function createRealNode(vnode) {
             if (vnode.attrs[key]) {
                 setTimeout(() => element.focus(), 0);
             }
+        } else if (key === 'disabled') {
+            // Handle disabled properly - only set if true
+            if (vnode.attrs[key]) {
+                element.disabled = true;
+            }
+        } else if (key === 'required') {
+            // Handle required properly - only set if true
+            if (vnode.attrs[key]) {
+                element.required = true;
+            }
         } else {
             // Handle regular attributes like id, placeholder, etc.
-            element.setAttribute(key, vnode.attrs[key]);
+            // Only set if value is not undefined/null
+            if (vnode.attrs[key] != null) {
+                element.setAttribute(key, vnode.attrs[key]);
+            }
         }
     });
+    }
     
     // Step 4: Add all the children (things that go inside this element)
-    vnode.children.forEach(child => {
-        element.appendChild(createRealNode(child)); // Recursive: build each child
-    });
+    if (vnode.children && Array.isArray(vnode.children)) {
+        vnode.children.forEach(child => {
+            element.appendChild(createRealNode(child)); // Recursive: build each child
+        });
+    }
     
     return element; // Return the finished HTML element
 }
