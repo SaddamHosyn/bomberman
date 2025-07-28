@@ -62,25 +62,181 @@ export function WaitingRoom(props) {
 /**
  * Render timer display - UPDATED: Match backend timer logic
  */
+/**
+ * Render timer display - ENHANCED with debugging
+ */
+
+
 function renderTimerDisplay(state) {
+/**
+ * Render timer display - ENHANCED debugging
+ */
+function renderTimerDisplay(state) {
+    console.log('🎯 RENDER TIMER CALLED WITH:');
+    console.log('  waitingTimer:', state.waitingTimer);
+    console.log('  gameTimer:', state.gameTimer); 
+    console.log('  players.length:', state.players.length);
+    console.log('  players:', state.players);
+    
     if (state.gameTimer !== null && state.gameTimer > 0) {
-        return createElement('div', { className: 'timer' },
-            `Game starting in ${state.gameTimer} seconds!`
+        console.log('✅ SHOWING GAME TIMER:', state.gameTimer);
+        return createElement('div', { 
+            className: 'timer',
+            style: { 
+                fontSize: '24px', 
+                fontWeight: 'bold', 
+                color: '#ffffff',
+                textAlign: 'center',
+                padding: '15px',
+                background: 'linear-gradient(45deg, #e74c3c, #c0392b)',
+                border: '3px solid #e74c3c',
+                borderRadius: '10px',
+                margin: '15px 0',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
+            }
+        },
+            `🎮 GAME STARTING IN ${state.gameTimer} SECONDS!`
         );
     } else if (state.waitingTimer !== null && state.waitingTimer > 0) {
-        return createElement('div', { className: 'timer' },
-            `Waiting for more players... ${state.waitingTimer}s remaining`
+        console.log('✅ SHOWING WAITING TIMER:', state.waitingTimer);
+        return createElement('div', { 
+            className: 'timer',
+            style: { 
+                fontSize: '20px', 
+                fontWeight: 'bold', 
+                color: '#ffffff',
+                textAlign: 'center',
+                padding: '12px',
+                background: 'linear-gradient(45deg, #f39c12, #e67e22)',
+                border: '3px solid #f39c12',
+                borderRadius: '8px',
+                margin: '10px 0',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+            }
+        },
+            `⏳ WAITING FOR MORE PLAYERS... ${state.waitingTimer}s REMAINING`
         );
     } else if (state.players.length < state.minPlayers) {
+        console.log('✅ SHOWING: Need more players');
         return createElement('div', { className: 'timer' },
             `Waiting for ${state.minPlayers - state.players.length} more player(s)...`
         );
     } else if (state.players.length >= state.minPlayers && state.players.length < state.maxPlayers) {
+        console.log('✅ SHOWING: Waiting for timer to start');
         return createElement('div', { className: 'timer' },
             'Waiting for timer to start...'
         );
     } else {
+        console.log('✅ SHOWING: Ready to start');
         return createElement('div', { className: 'timer' },
+            'Ready to start!'
+        );
+    }
+}
+
+
+
+
+
+
+
+    // ENHANCED DEBUG: Log everything about timer state
+    console.log('🔍 TIMER DISPLAY DEBUG:', {
+        gameTimer: state.gameTimer,
+        waitingTimer: state.waitingTimer,
+        playersLength: state.players.length,
+        minPlayers: state.minPlayers,
+        maxPlayers: state.maxPlayers,
+        currentScreen: state.currentScreen
+    });
+    
+    // Game start countdown (red, urgent)
+    if (state.gameTimer !== null && state.gameTimer > 0) {
+        console.log('✅ SHOWING GAME TIMER:', state.gameTimer);
+        return createElement('div', { 
+            className: 'timer',
+            style: { 
+                fontSize: '24px', 
+                fontWeight: 'bold', 
+                color: '#ffffff',
+                textAlign: 'center',
+                padding: '15px',
+                background: 'linear-gradient(45deg, #e74c3c, #c0392b)',
+                border: '3px solid #e74c3c',
+                borderRadius: '10px',
+                margin: '15px 0',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+                animation: 'pulse 1s infinite'
+            }
+        },
+            `🎮 GAME STARTING IN ${state.gameTimer} SECONDS!`
+        );
+    }
+
+
+
+
+
+
+ // Wait timer countdown (orange, waiting)
+    else if (state.waitingTimer !== null && state.waitingTimer > 0) {
+        console.log('✅ SHOWING WAITING TIMER:', state.waitingTimer);
+        return createElement('div', { 
+            className: 'timer',
+            style: { 
+                fontSize: '20px', 
+                fontWeight: 'bold', 
+                color: '#ffffff',
+                textAlign: 'center',
+                padding: '12px',
+                background: 'linear-gradient(45deg, #f39c12, #e67e22)',
+                border: '3px solid #f39c12',
+                borderRadius: '8px',
+                margin: '10px 0',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+            }
+        },
+            `⏳ WAITING FOR MORE PLAYERS... ${state.waitingTimer}s REMAINING`
+        );
+    } 
+    // Not enough players
+    else if (state.players.length < state.minPlayers) {
+        console.log('✅ SHOWING: Need more players');
+        return createElement('div', { 
+            className: 'timer',
+            style: { fontSize: '16px', color: '#7f8c8d', textAlign: 'center', padding: '8px' }
+        },
+            `Waiting for ${state.minPlayers - state.players.length} more player(s)...`
+        );
+    }
+    
+    
+    
+    
+    
+      // Enough players, waiting for timer
+    else if (state.players.length >= state.minPlayers && state.players.length < state.maxPlayers) {
+        console.log('✅ SHOWING: Waiting for timer to start');
+        return createElement('div', { 
+            className: 'timer',
+            style: { fontSize: '16px', color: '#27ae60', textAlign: 'center', padding: '8px' }
+        },
+            'Waiting for timer to start...'
+        );
+    }
+    
+    
+    
+    
+    
+    
+     // Ready to start
+    else {
+        console.log('✅ SHOWING: Ready to start');
+        return createElement('div', { 
+            className: 'timer',
+            style: { fontSize: '16px', color: '#27ae60', textAlign: 'center', padding: '8px' }
+        },
             'Ready to start!'
         );
     }

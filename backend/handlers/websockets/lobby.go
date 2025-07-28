@@ -510,6 +510,10 @@ func (lh *LobbyHandler) startWaitTimer() {
 		status := lh.lobby.Status
 		lh.lobby.Mutex.RUnlock()
 
+		// DEBUG LOG:
+
+		log.Printf("🔄 WAIT TIMER: %d seconds remaining, players: %d, status: %s", i, currentPlayerCount, status)
+
 		// If lobby is full, switch to game countdown
 		if currentPlayerCount == lh.lobby.MaxPlayers {
 			lh.lobby.Mutex.Lock()
@@ -519,6 +523,7 @@ func (lh *LobbyHandler) startWaitTimer() {
 			return
 		}
 
+		// If not enough players, reset to waiting
 		// If not enough players, reset to waiting
 		if currentPlayerCount < lh.lobby.MinPlayers {
 			lh.lobby.Mutex.Lock()
@@ -537,6 +542,11 @@ func (lh *LobbyHandler) startWaitTimer() {
 				Status:      status,
 			},
 		}
+
+		// ADD THIS DEBUG LOG:
+		log.Printf("📤 SENDING TIMER UPDATE: TimeLeft=%d, Status=%s, PlayerCount=%d", i, status, currentPlayerCount)
+		log.Printf("🔥 BROADCASTING TIMER: TimeLeft=%d, Status=%s, PlayerCount=%d", i, status, currentPlayerCount)
+
 		lh.broadcastToLobby("", updateMsg)
 	}
 

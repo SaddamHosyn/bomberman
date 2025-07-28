@@ -172,24 +172,36 @@ handleWebSocketMessage(event) {
         const messageData = message.data || message.Data || {};
 
         switch (message.type) {
-           case 'success':
+    case 'success':
     console.log('✅ Success message:', messageData);
     
     // Handle initial connection success  
     if (messageData.message?.includes('Connected successfully - please provide nickname')) {
-        console.log('📡 Connected to WebSocket, sending join_lobby message...');
+        console.log('📡 Connected to WebSocket, join_lobby message sent');
     }
     // Handle lobby join success
     else if (messageData.message?.includes('Joined lobby successfully')) {
         console.log('🎉 SUCCESSFULLY JOINED LOBBY!');
         console.log('👥 Player count now:', messageData.playerCount);
+        
+        // Create player object for the joined user
+        const currentPlayer = {
+            id: messageData.playerId,
+            WebSocketID: messageData.playerId,
+            nickname: messageData.nickname,
+            lives: 3,
+            isHost: false
+        };
+        
         this.setState({
             currentScreen: 'waiting',
             isJoining: false,
-            playerId: messageData.playerId
+            playerId: messageData.playerId,
+            players: [currentPlayer]  // Initialize with current player
         });
     }
     break;
+
 
                 
             case 'lobby_update':
@@ -230,24 +242,131 @@ handleWebSocketMessage(event) {
     /**
      * Handle lobby update from server
      */
- handleLobbyUpdate(data) {
-    console.log('Lobby update data received:', data); // Add debugging
-    const players = data.players || [];
+/**
+ * Handle lobby update from server - FIXED to extract timer data
+ */
+
+
+/**
+ * Handle lobby update from server - FIXED field names and data extraction
+ */
+handleLobbyUpdate(data) {
+    console.log('🏠 Lobby update data received:', data);
+    console.log('🚨 === TIMER DEBUG START ===');
+    console.log('FULL DATA RECEIVED:', JSON.stringify(data, null, 2));
+    console.log('data.status:', data.status);        // ← FIXED: lowercase
+    console.log('data.timeLeft:', data.timeLeft);    // ← FIXED: lowercase
+    console.log('data.playerCount:', data.playerCount); // ← FIXED: lowercase
+    console.log('🚨 === TIMER DEBUG END ===');
+    
+    // Extract players from nested lobby object
+    let players = [];
+    if (data.lobby && data.lobby.players) {
+        players = Object.values(data.lobby.players).map(player => ({
+            id: player.webSocketId,
+            WebSocketID: player.webSocketId,
+            nickname: player.Name,  // Backend uses 'Name'
+            lives: player.Lives,
+            isHost: data.lobby.host === player.webSocketId
+        }));
+    }
+    
+    // Extract timer data - FIXED: Use lowercase field names
+    let waitingTimer = null;
+    let gameTimer = null;
+    
+    if (data.status === "waiting_for_players" && data.timeLeft > 0) {
+        waitingTimer = data.timeLeft;  // 20-second wait timer
+        console.log('⏳ SETTING WAITING TIMER:', waitingTimer);
+    } else if (data.status === "starting" && data.timeLeft > 0) {
+        gameTimer = data.timeLeft;     // 10-second game start timer
+        console.log('🎮 SETTING GAME TIMER:', gameTimer);
+    }
+    
+    console.log('📊 Timer Update:', {
+        status: data.status,           // ← FIXED: lowercase
+        timeLeft: data.timeLeft,       // ← FIXED: lowercase
+        waitingTimer,
+        gameTimer,
+        playerCount: data.playerCount  // ← FIXED: lowercase
+    });
+    
     this.setState({
-        players: players,
-        playerId: data.your_player_id || data.player_id || this.state.playerId
+        players: players,              // ← NOW PROPERLY EXTRACTED
+        playerId: data.your_player_id || data.player_id || this.state.playerId,
+        waitingTimer: waitingTimer,    // ← NOW PROPERLY SET
+        gameTimer: gameTimer,          // ← NOW PROPERLY SET
     });
 }
+
+
+
+
+
+
+
+
+/**
+ * Handle player joined events - NEW
+ */
+handlePlayerJoined(data) {
+    console.log('👤 Player joined:', data);
+    
+    if (data.Player) {
+        // Convert backend player format to frontend format
+        const newPlayer = {
+            id: data.Player.WebSocketID,
+            WebSocketID: data.Player.WebSocketID,
+            nickname: data.Player.Name,  // Backend uses 'Name'
+            lives: data.Player.Lives,
+            isHost: false
+        };
+        
+        // Add/update the player in the list
+        const updatedPlayers = this.state.players.filter(p => 
+            p.WebSocketID !== newPlayer.WebSocketID
+        );
+        updatedPlayers.push(newPlayer);
+        
+        this.setState({
+            players: updatedPlayers
+        });
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     /**
      * Handle new chat message from server
      */
+/**
+ * Handle new chat message from server - FIXED field mapping
+ */
+/**
+ * Handle new chat message from server - FIXED field mapping
+ */
 handleChatMessage(data) {
     console.log('🗨️ Processing chat message:', data);
     
-    // Try multiple possible field names from backend
-    const author = data.author || data.nickname || data.username || data.from || 'Unknown';
-    const text = data.message || data.text || data.content || data.msg || '';
+    // Backend sends: Nickname, Message, Timestamp (capitalized)
+    const author = data.Nickname || data.nickname || data.author || 'Unknown';
+    const text = data.Message || data.message || data.text || '';
     
     if (!text) {
         console.warn('⚠️ Empty chat message received:', data);
@@ -255,10 +374,10 @@ handleChatMessage(data) {
     }
 
     const newMessage = {
-        id: Date.now() + Math.random(),
+        id: data.ID || Date.now() + Math.random(),
         author: author,
         text: text,
-        timestamp: data.timestamp ? new Date(data.timestamp) : new Date()
+        timestamp: data.Timestamp ? new Date(data.Timestamp) : new Date()
     };
 
     console.log('✅ Adding message to chat:', newMessage);
@@ -268,6 +387,8 @@ handleChatMessage(data) {
         chatError: null
     });
 }
+
+
 
 /**
     /**
