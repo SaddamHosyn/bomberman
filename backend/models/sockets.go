@@ -7,6 +7,27 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+
+
+
+// SessionData stores player session information
+type SessionData struct {
+    SessionID        string                        `json:"sessionId"`
+    PlayerID         string                        `json:"playerId"`
+    Nickname         string                        `json:"nickname"`
+    LobbyID          string                        `json:"lobbyId"`
+    LastActiveTime   time.Time                     `json:"lastActiveTime"`
+    CurrentScreen    string                        `json:"currentScreen"`
+    IsActive         bool                          `json:"isActive"`
+    MissedEvents     []WebSocketMessage            `json:"missedEvents"`
+    LastSyncTime     time.Time                     `json:"lastSyncTime"`
+}
+
+
+
+
+
+
 // Client represents a WebSocket connection (network level)
 type Client struct {
 	ID       string          `json:"id"`

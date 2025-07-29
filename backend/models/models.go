@@ -55,3 +55,7 @@ type Block struct {
 type Wall struct {
 	Position Position
 }
+
+
+
+
