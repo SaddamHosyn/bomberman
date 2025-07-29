@@ -5,14 +5,12 @@ import (
 )
 
 const (
-	// TotalDestructibleBlocks defines the exact number of blocks to be placed on the map.
-	TotalDestructibleBlocks = 80
-	// NumSpeedPowerUps defines the number of speed power-ups per game.
-	NumSpeedPowerUps = 3
-	// NumFlamePowerUps defines the number of flame power-ups per game.
-	NumFlamePowerUps = 3
-	// NumBombPowerUps defines the number of bomb power-ups per game.
-	NumBombPowerUps = 3
+	MapWidth      = 15
+	MapHeight     = 13
+	TotalBlocks   = 80
+	SpeedPowerUps = 3
+	FlamePowerUps = 3
+	BombPowerUps  = 3
 )
 
 // GenerateMap creates a new map by calling helper functions to create the walls and blocks.
@@ -61,7 +59,7 @@ func GenerateBlocks(width, height int, walls []*Wall) []*Block {
 	for y := 1; y < height-1; y++ {
 		for x := 1; x < width-1; x++ {
 			pos := Position{X: x, Y: y}
-			if !wallMap[pos] && !isSpawnArea(x, y, width, height) {
+			if !wallMap[pos] && !IsSpawnArea(x, y, width, height) {
 				availablePositions = append(availablePositions, pos)
 			}
 		}
@@ -74,19 +72,19 @@ func GenerateBlocks(width, height int, walls []*Wall) []*Block {
 
 	// 3. Create the list of power-ups to be placed.
 	powerUps := []*PowerUp{}
-	for i := 0; i < NumSpeedPowerUps; i++ {
+	for i := 0; i < SpeedPowerUps; i++ {
 		powerUps = append(powerUps, &PowerUp{Type: SpeedUp})
 	}
-	for i := 0; i < NumFlamePowerUps; i++ {
+	for i := 0; i < FlamePowerUps; i++ {
 		powerUps = append(powerUps, &PowerUp{Type: FlameUp})
 	}
-	for i := 0; i < NumBombPowerUps; i++ {
+	for i := 0; i < BombPowerUps; i++ {
 		powerUps = append(powerUps, &PowerUp{Type: BombUp})
 	}
 
 	// 4. Create the blocks and assign power-ups.
 	var blocks []*Block
-	numBlocks := TotalDestructibleBlocks
+	numBlocks := TotalBlocks
 	if numBlocks > len(availablePositions) {
 		numBlocks = len(availablePositions) // Ensure we don't place more blocks than available spots.
 	}
@@ -113,7 +111,7 @@ func GenerateBlocks(width, height int, walls []*Wall) []*Block {
 
 // isSpawnArea checks if a position is a player spawn point or an adjacent tile
 // to ensure players have a safe starting zone.
-func isSpawnArea(x, y, width, height int) bool {
+func IsSpawnArea(x, y, width, height int) bool {
 	// Top-left corner
 	if (x == 1 && y == 1) || (x == 1 && y == 2) || (x == 2 && y == 1) {
 		return true

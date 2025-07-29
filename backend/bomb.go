@@ -66,6 +66,8 @@ func UpdateBombs(gs *GameState) {
 func CreateFlames(gs *GameState, bomb *Bomb) {
 	// Add flame at the bomb's center
 	gs.Flames = append(gs.Flames, &Flame{Position: bomb.Position, Timer: FlameTime})
+	isPlayer(gs, bomb.Position)  // Check if a player is on the bomb itself
+	isPowerUp(gs, bomb.Position) // Check if a power-up is at the bomb's position
 
 	// Directions: up, down, left, right
 	dirs := []Position{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}
@@ -81,6 +83,10 @@ func CreateFlames(gs *GameState, bomb *Bomb) {
 
 			gs.Flames = append(gs.Flames, &Flame{Position: pos, Timer: FlameTime})
 
+			// Dmg players and/or PowerUps and dont stop flames
+			isPlayer(gs, pos)
+			isPowerUp(gs, pos)
+
 			// If the flame hits a destructible block, it stops spreading in that direction
 			if isBlock(gs, pos) {
 				break
@@ -89,7 +95,7 @@ func CreateFlames(gs *GameState, bomb *Bomb) {
 	}
 }
 
-// destroyBlockAt finds a block at a given position, marks it as destroyed,
+// Finds a block at a given position, marks it as destroyed,
 // and reveals a power-up if one is hidden. It returns true if a block was found and destroyed.
 func isBlock(gs *GameState, pos Position) bool {
 	for _, block := range gs.Map.Blocks {
@@ -117,4 +123,31 @@ func isWall(gs *GameState, pos Position) bool {
 		}
 	}
 	return false
+}
+
+// isPlayer checks if an alive player is at a given position. If so, it reduces
+// their lives and returns true to stop the flame.
+func isPlayer(gs *GameState, pos Position) {
+	for _, player := range gs.Players {
+		if player.Alive && player.Position == pos {
+			player.Lives--
+			if player.Lives <= 0 {
+				player.Alive = false
+				// Optional: Add scoring logic here for the bomb owner
+			}
+		}
+	}
+}
+
+// destroyPowerUpAt finds and removes a power-up at a given position.
+func isPowerUp(gs *GameState, pos Position) {
+	var remainingPowerUps []*ActivePowerUp
+	for _, powerUp := range gs.PowerUps {
+		// Keep the power-up only if its position does not match the flame's position.
+		if powerUp.Position != pos {
+			remainingPowerUps = append(remainingPowerUps, powerUp)
+		}
+	}
+	// Replace the old slice with the new one that doesn't contain the destroyed power-up.
+	gs.PowerUps = remainingPowerUps
 }

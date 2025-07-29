@@ -30,6 +30,6 @@ func applyPowerUp(player *Player, powerUpType PowerUpType) {
 	case FlameUp:
 		player.FlameRange++
 	case SpeedUp:
-		player.Speed++ // We'll define what "Speed" means later in the movement logic
+		player.Speed++
 	}
 }
