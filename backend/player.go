@@ -1,9 +1,11 @@
 package backend
 
+import "bomberman-dom/backend/models"
+
 // MovePlayer updates a player's position based on their input and speed.
 // It moves the player one step at a time for the total move amount,
 // checking for collisions at each step to prevent "tunneling" through objects.
-func MovePlayer(player *Player, direction string, gs *GameState) {
+func MovePlayer(player *models.Player, direction string, gs *models.GameState) {
 	if !player.Alive {
 		return // Dead players can't move
 	}
@@ -37,7 +39,7 @@ func MovePlayer(player *Player, direction string, gs *GameState) {
 }
 
 // isPositionValid checks if a given position is within map bounds and not occupied by a solid object.
-func isPositionValid(pos Position, movingPlayer *Player, gs *GameState) bool {
+func isPositionValid(pos models.Position, movingPlayer *models.Player, gs *models.GameState) bool {
 	// 1. Check map boundaries (assuming a simple grid size)
 	if pos.X < 0 || pos.X >= gs.Map.Width || pos.Y < 0 || pos.Y >= gs.Map.Height {
 		return false
@@ -83,7 +85,7 @@ func isPositionValid(pos Position, movingPlayer *Player, gs *GameState) bool {
 
 // IsGameOver checks if the game has concluded by counting the number of living players.
 // It returns true if one or zero players are left alive, false otherwise.
-func IsGameOver(gs *GameState) bool {
+func IsGameOver(gs *models.GameState) bool {
 	aliveCount := 0
 	for _, player := range gs.Players {
 		if player.Alive {
@@ -96,8 +98,8 @@ func IsGameOver(gs *GameState) bool {
 
 // GetWinner finds and returns the last player who is still alive.
 // It returns nil if there is no winner (e.g., a draw).
-func GetWinner(gs *GameState) *Player {
-	var lastAlivePlayer *Player
+func GetWinner(gs *models.GameState) *models.Player {
+	var lastAlivePlayer *models.Player
 	for _, p := range gs.Players {
 		if p.Alive {
 			// If we find a second alive player, it's not over yet, so there's no winner.

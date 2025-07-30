@@ -1,21 +1,23 @@
 package backend
 
+import "bomberman-dom/backend/models"
+
 // NewGame initializes and returns a new GameState with players and a map.
-func NewGame(players []*Player) *GameState {
-	return &GameState{
+func NewGame(players []*models.Player) *models.GameState {
+	return &models.GameState{
 		Players:  players,
 		Map:      GenerateMap(MapWidth, MapHeight),
-		Bombs:    []*Bomb{},
-		Flames:   []*Flame{},
-		PowerUps: []*ActivePowerUp{},
-		Status:   InProgress, // Or a 'Starting' status with a countdown
+		Bombs:    []*models.Bomb{},
+		Flames:   []*models.Flame{},
+		PowerUps: []*models.ActivePowerUp{},
+		Status:   models.InProgress, // Or a 'Starting' status with a countdown
 	}
 }
 
 // GameTick is the main loop of the game. It updates the state of all objects.
 // This function should be called repeatedly (e.g., by a ticker on the server).
-func GameTick(gs *GameState) {
-	if gs.Status != InProgress {
+func GameTick(gs *models.GameState) {
+	if gs.Status != models.InProgress {
 		return // Don't update the game if it's not running.
 	}
 
@@ -33,7 +35,7 @@ func GameTick(gs *GameState) {
 	// --- CHECK GAME OVER CONDITION ---
 	// 4. Check if the game has ended
 	if IsGameOver(gs) {
-		gs.Status = Finished
+		gs.Status = models.Finished
 		gs.Winner = GetWinner(gs)
 	}
 }

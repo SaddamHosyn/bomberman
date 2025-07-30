@@ -1,8 +1,12 @@
 package backend
 
+import (
+	"bomberman-dom/backend/models"
+)
+
 // CheckPowerUpPickups iterates through players and active power-ups to see if any have been collected.
-func PowerUpPickups(gs *GameState) {
-	var remainingPowerUps []*ActivePowerUp
+func PowerUpPickups(gs *models.GameState) {
+	var remainingPowerUps []*models.ActivePowerUp
 
 	for _, powerUp := range gs.PowerUps {
 		pickedUp := false
@@ -23,13 +27,13 @@ func PowerUpPickups(gs *GameState) {
 }
 
 // applyPowerUp modifies a player's stats based on the power-up type.
-func applyPowerUp(player *Player, powerUpType PowerUpType) {
+func applyPowerUp(player *models.Player, powerUpType models.PowerUpType) {
 	switch powerUpType {
-	case BombUp:
+	case models.BombUp:
 		player.BombCount++
-	case FlameUp:
+	case models.FlameUp:
 		player.FlameRange++
-	case SpeedUp:
+	case models.SpeedUp:
 		player.Speed++
 	}
 }

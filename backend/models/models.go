@@ -1,4 +1,4 @@
-package backend
+package models
 
 type GameStatus int
 
@@ -85,7 +85,7 @@ type ActivePowerUp struct {
 	Type     PowerUpType
 }
 
-type ChatMessage struct {
-	PlayerName string
-	Message    string
-}
+// type ChatMessage struct {
+// 	PlayerName string
+// 	Message    string
+// }
