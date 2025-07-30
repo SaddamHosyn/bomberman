@@ -109,7 +109,7 @@ func TestPlayerPickup_PowerUp(t *testing.T) {
 
 	// Move player onto the power-up
 	backend.MovePlayer(player, "right", gs)
-	backend.CheckPowerUpPickups(gs)
+	backend.PowerUpPickups(gs)
 
 	if player.Speed != 1 {
 		t.Errorf("Expected player speed to be 1 after pickup, but got %d", player.Speed)

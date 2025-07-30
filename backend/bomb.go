@@ -8,7 +8,8 @@ const (
 // PlaceBomb adds a new bomb to the game state at the player's position.
 func PlaceBomb(gs *GameState, player *Player) {
 	// Check if player can place another bomb
-	if player.BombsPlaced >= player.BombCount {
+
+	if player.Alive && player.BombsPlaced >= player.BombCount {
 		return
 	}
 
@@ -93,6 +94,18 @@ func CreateFlames(gs *GameState, bomb *Bomb) {
 			}
 		}
 	}
+}
+
+// UpdateFlames reduces the timer on active flames and removes them when they expire.
+func UpdateFlames(gs *GameState) {
+	var remainingFlames []*Flame
+	for _, flame := range gs.Flames {
+		flame.Timer--
+		if flame.Timer > 0 {
+			remainingFlames = append(remainingFlames, flame)
+		}
+	}
+	gs.Flames = remainingFlames
 }
 
 // Finds a block at a given position, marks it as destroyed,

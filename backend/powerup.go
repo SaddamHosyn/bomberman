@@ -1,7 +1,7 @@
 package backend
 
 // CheckPowerUpPickups iterates through players and active power-ups to see if any have been collected.
-func CheckPowerUpPickups(gs *GameState) {
+func PowerUpPickups(gs *GameState) {
 	var remainingPowerUps []*ActivePowerUp
 
 	for _, powerUp := range gs.PowerUps {

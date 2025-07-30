@@ -80,3 +80,32 @@ func isPositionValid(pos Position, movingPlayer *Player, gs *GameState) bool {
 
 	return true // Position is valid
 }
+
+// IsGameOver checks if the game has concluded by counting the number of living players.
+// It returns true if one or zero players are left alive, false otherwise.
+func IsGameOver(gs *GameState) bool {
+	aliveCount := 0
+	for _, player := range gs.Players {
+		if player.Alive {
+			aliveCount++
+		}
+	}
+	// The game is over if there is a single winner (1) or a draw (0).
+	return aliveCount <= 1
+}
+
+// GetWinner finds and returns the last player who is still alive.
+// It returns nil if there is no winner (e.g., a draw).
+func GetWinner(gs *GameState) *Player {
+	var lastAlivePlayer *Player
+	for _, p := range gs.Players {
+		if p.Alive {
+			// If we find a second alive player, it's not over yet, so there's no winner.
+			if lastAlivePlayer != nil {
+				return nil
+			}
+			lastAlivePlayer = p
+		}
+	}
+	return lastAlivePlayer // This will be the single winner, or nil if 0 are alive.
+}

@@ -8,9 +8,9 @@ const (
 	MapWidth      = 15
 	MapHeight     = 13
 	TotalBlocks   = 80
-	SpeedPowerUps = 3
-	FlamePowerUps = 3
-	BombPowerUps  = 3
+	SpeedPowerUps = 5
+	FlamePowerUps = 5
+	BombPowerUps  = 5
 )
 
 // GenerateMap creates a new map by calling helper functions to create the walls and blocks.
