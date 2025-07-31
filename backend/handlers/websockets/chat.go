@@ -81,12 +81,6 @@ func addJoinMessageToGlobal(manager *WebSocketManager, nickname string) {
 	addChatMessageToGlobal(manager, joinMessage)
 }
 
-// addLeaveMessageToGlobal adds a leave message to global chat
-func addLeaveMessageToGlobal(manager *WebSocketManager, nickname string) {
-	leaveMessage := utils.CreateLeaveMessage(nickname)
-	addChatMessageToGlobal(manager, leaveMessage)
-}
-
 // getChatHistory returns the global chat history
 func getChatHistory() []models.ChatMessage {
 	chatMutex.RLock()

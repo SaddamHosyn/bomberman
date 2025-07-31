@@ -2,8 +2,8 @@ package models
 
 const (
 	// Lobby related messages
-	MSG_JOIN_LOBBY    = "join_lobby"
-	MSG_LEAVE_LOBBY   = "leave_lobby"
+	MSG_JOIN_LOBBY = "join_lobby"
+
 	MSG_LOBBY_UPDATE  = "lobby_update"
 	MSG_PLAYER_JOINED = "player_joined"
 	MSG_PLAYER_LEFT   = "player_left"

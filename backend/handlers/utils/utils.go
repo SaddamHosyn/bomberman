@@ -31,11 +31,6 @@ func CreateJoinMessage(nickname string) models.ChatMessage {
 	return CreateSystemMessage(fmt.Sprintf("%s joined the chat", nickname))
 }
 
-// CreateLeaveMessage creates a leave message for global chat
-func CreateLeaveMessage(nickname string) models.ChatMessage {
-	return CreateSystemMessage(fmt.Sprintf("%s left the chat", nickname))
-}
-
 // GenerateGameMap creates a basic game map for Bomberman
 func GenerateGameMap() [][]int {
 	// Simple 13x11 map (standard Bomberman size)

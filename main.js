@@ -30,7 +30,7 @@ function renderApp() {
             return WaitingRoom({
                 ...state,
                 onSendMessage: handleSendMessage,
-                onLeaveRoom: handleLeaveRoom
+           
             });
         
         case 'game':
@@ -43,13 +43,7 @@ function renderApp() {
             },
                 createElement('h1', {}, 'Game Starting...'),
                 createElement('p', {}, 'Game implementation coming soon!'),
-                createElement('button', {
-                    onclick: handleLeaveRoom,
-                    style: {
-                        marginTop: '20px',
-                        padding: '10px 20px'
-                    }
-                }, 'Back to Lobby')
+               
             );
         
         default:
@@ -94,12 +88,7 @@ function handleSendMessage(message) {
   
 }
 
-/**
- * Handle leaving the waiting room
- */
-function handleLeaveRoom() {
-    gameState.leaveGame();
-}
+
 
 // Set up app state listeners
 gameState.subscribe((newState) => {

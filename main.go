@@ -1,4 +1,4 @@
-package backend
+package main
 
 import (
 	"bomberman-dom/backend/handlers/websockets"

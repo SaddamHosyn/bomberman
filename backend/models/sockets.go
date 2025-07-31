@@ -7,19 +7,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// SessionData stores player session information
-type SessionData struct {
-	SessionID      string             `json:"sessionId"`
-	PlayerID       string             `json:"playerId"`
-	Nickname       string             `json:"nickname"`
-	LobbyID        string             `json:"lobbyId"`
-	LastActiveTime time.Time          `json:"lastActiveTime"`
-	CurrentScreen  string             `json:"currentScreen"`
-	IsActive       bool               `json:"isActive"`
-	MissedEvents   []WebSocketMessage `json:"missedEvents"`
-	LastSyncTime   time.Time          `json:"lastSyncTime"`
-}
-
 // Client represents a WebSocket connection (network level)
 type Client struct {
 	ID       string          `json:"id"`
@@ -49,7 +36,7 @@ type ChatMessage struct {
 	Nickname  string    `json:"nickname"`
 	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`
-	Type      string    `json:"type"` // "chat", "system", "join", "leave"
+	Type      string    `json:"type"` // "chat", "system", "join"
 }
 
 type WebSocketMessage struct {
@@ -108,11 +95,6 @@ type JoinLobbyRequest struct {
 	Nickname string `json:"nickname"`
 	LobbyID  string `json:"lobbyId,omitempty"`
 	PlayerID string `json:"playerId"`
-}
-
-type LeaveLobbyRequest struct {
-	PlayerID string `json:"playerId"`
-	LobbyID  string `json:"lobbyId"`
 }
 
 // Event structs

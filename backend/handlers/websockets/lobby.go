@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	"bomberman-dom/backend/models"
@@ -21,10 +20,8 @@ var upgrader = websocket.Upgrader{
 }
 
 type LobbyHandler struct {
-	hub          *models.Hub
-	lobby        *models.Lobby
-	sessions     map[string]*models.SessionData
-	sessionMutex sync.RWMutex
+	hub   *models.Hub
+	lobby *models.Lobby
 }
 
 func NewLobbyHandler() *LobbyHandler {
@@ -51,13 +48,11 @@ func NewLobbyHandler() *LobbyHandler {
 	}
 
 	lobbyHandler := &LobbyHandler{
-		hub:      hub,
-		lobby:    singleLobby,
-		sessions: make(map[string]*models.SessionData),
+		hub:   hub,
+		lobby: singleLobby,
 	}
 
 	go lobbyHandler.run()
-	go lobbyHandler.cleanupExpiredSessions()
 	return lobbyHandler
 }
 
@@ -133,16 +128,6 @@ func (lh *LobbyHandler) unregisterPlayer(player *models.WebSocketPlayer) {
 		}
 		lh.lobby.Mutex.Unlock()
 
-		// Mark session as inactive
-		if sessionId := lh.findSessionByPlayerId(player.WebSocketID); sessionId != "" {
-			lh.sessionMutex.Lock()
-			if session, exists := lh.sessions[sessionId]; exists {
-				session.IsActive = false
-				session.LastActiveTime = time.Now()
-			}
-			lh.sessionMutex.Unlock()
-		}
-
 		delete(lh.hub.Players, player.WebSocketID)
 		close(player.Send)
 		player.IsConnected = false
@@ -174,17 +159,11 @@ func (lh *LobbyHandler) broadcastMessage(message *models.WebSocketMessage) {
 func (lh *LobbyHandler) broadcastToLobby(lobbyID string, message *models.WebSocketMessage) {
 	lobby := lh.lobby
 
-	lh.storeEventForSessions(*message)
-
 	lobby.Mutex.RLock()
 	defer lobby.Mutex.RUnlock()
 
 	for _, player := range lobby.Players {
 		lh.sendToPlayer(player, message)
-
-		if sessionId := lh.findSessionByPlayerId(player.WebSocketID); sessionId != "" {
-			lh.updateSessionActivity(sessionId)
-		}
 	}
 }
 
@@ -282,8 +261,6 @@ func (lh *LobbyHandler) handleMessage(player *models.WebSocketPlayer, message *m
 	switch message.Type {
 	case models.MSG_JOIN_LOBBY:
 		lh.handleJoinLobby(player, message)
-	case "reconnect_session":
-		lh.handleSessionReconnect(player, message)
 	case models.MSG_LOBBY_STATUS:
 		lh.handleLobbyStatusRequest(player, message)
 	case models.MSG_CHAT_MESSAGE:
@@ -328,12 +305,9 @@ func (lh *LobbyHandler) GetPlayerCount() int {
 	return len(lh.lobby.Players)
 }
 
-// FIXED: Simplified join lobby handler that prioritizes fresh connections
 func (lh *LobbyHandler) handleJoinLobby(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
 	var joinRequest struct {
-		Nickname     string `json:"nickname"`
-		SessionID    string `json:"sessionId"`
-		IsNewSession bool   `json:"isNewSession"`
+		Nickname string `json:"nickname"`
 	}
 
 	DataBytes, err := json.Marshal(message.Data)
@@ -349,16 +323,12 @@ func (lh *LobbyHandler) handleJoinLobby(player *models.WebSocketPlayer, message 
 			return
 		}
 		joinRequest.Nickname = originalRequest.Nickname
-		joinRequest.IsNewSession = true
 	}
 
 	if joinRequest.Nickname == "" {
 		lh.sendError(player, "Nickname is required")
 		return
 	}
-
-	// Clean up any existing inactive sessions for this nickname first
-	lh.cleanupInactiveSessionsForNickname(joinRequest.Nickname)
 
 	// Check if nickname is already taken by ACTIVE players only
 	lh.lobby.Mutex.Lock()
@@ -385,310 +355,69 @@ func (lh *LobbyHandler) handleJoinLobby(player *models.WebSocketPlayer, message 
 	if lh.lobby.Host == "" {
 		lh.lobby.Host = player.WebSocketID
 	}
+
+	// Get current players list for sending to new player
+	currentPlayers := make([]map[string]interface{}, 0)
+	for _, p := range lh.lobby.Players {
+		currentPlayers = append(currentPlayers, map[string]interface{}{
+			"id":          p.WebSocketID,
+			"WebSocketID": p.WebSocketID,
+			"nickname":    p.Name,
+			"lives":       p.Lives,
+			"isHost":      lh.lobby.Host == p.WebSocketID,
+		})
+	}
+
+	playerCount := len(lh.lobby.Players)
 	lh.lobby.Mutex.Unlock()
 
-	// Create new session (always create fresh session for join_lobby)
-	sessionId := lh.generateSessionID()
-	lh.createSession(sessionId, player)
+	log.Printf("✅ Player %s joined lobby", player.Name)
 
-	log.Printf("✅ Player %s joined lobby with session %s", player.Name, sessionId)
-
+	// Send success message with FULL lobby state
 	successMsg := &models.WebSocketMessage{
 		Type: models.MSG_SUCCESS,
 		Data: map[string]interface{}{
 			"message":     "Joined lobby successfully",
 			"playerId":    player.WebSocketID,
 			"nickname":    player.Name,
-			"sessionId":   sessionId,
 			"lobbyId":     lh.lobby.ID,
-			"playerCount": len(lh.lobby.Players),
+			"playerCount": playerCount,
+			"players":     currentPlayers, // Send all current players
+			"isHost":      lh.lobby.Host == player.WebSocketID,
 		},
 	}
+
 	lh.sendToPlayer(player, successMsg)
 
+	// Broadcast to OTHER players that new player joined
 	lh.broadcastToLobby("", &models.WebSocketMessage{
 		Type: models.MSG_PLAYER_JOINED,
 		Data: &models.PlayerJoinedEvent{
 			Player:      player,
-			PlayerCount: len(lh.lobby.Players),
+			PlayerCount: playerCount,
 			Message:     player.Name + " joined the game",
 		},
 	})
 
+	// Send lobby update to ensure timers and state are synchronized
+	lh.sendLobbyUpdate()
 	lh.checkGameStartConditions()
 }
 
-// FIXED: Better session reconnection handling
-func (lh *LobbyHandler) handleSessionReconnect(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
-	var reconnectData struct {
-		SessionID         string `json:"sessionId"`
-		PlayerID          string `json:"playerId"`
-		Nickname          string `json:"nickname"`
-		LastSyncTimestamp int64  `json:"lastSyncTimestamp"`
-	}
+func (lh *LobbyHandler) sendLobbyUpdate() {
+	lh.lobby.Mutex.RLock()
+	defer lh.lobby.Mutex.RUnlock()
 
-	DataBytes, err := json.Marshal(message.Data)
-	if err != nil {
-		lh.sendError(player, "Invalid reconnect data")
-		return
-	}
-
-	if err := json.Unmarshal(DataBytes, &reconnectData); err != nil {
-		lh.sendError(player, "Invalid reconnect format")
-		return
-	}
-
-	session := lh.getSession(reconnectData.SessionID)
-	if session == nil {
-		log.Printf("⚠️ Session not found: %s", reconnectData.SessionID)
-		lh.sendError(player, "Session not found or expired")
-		return
-	}
-
-	if session.PlayerID != reconnectData.PlayerID || session.Nickname != reconnectData.Nickname {
-		log.Printf("⚠️ Invalid session credentials for %s", reconnectData.Nickname)
-		lh.sendError(player, "Invalid session credentials")
-		return
-	}
-
-	// Check if session expired (1 hour limit)
-	if time.Since(session.LastActiveTime) > 1*time.Hour {
-		log.Printf("⚠️ Session expired for %s (age: %v)", session.Nickname, time.Since(session.LastActiveTime))
-		lh.sessionMutex.Lock()
-		delete(lh.sessions, reconnectData.SessionID)
-		lh.sessionMutex.Unlock()
-		lh.sendError(player, "Session expired")
-		return
-	}
-
-	// Check if nickname is now taken by someone else
-	lh.lobby.Mutex.Lock()
-	for _, p := range lh.lobby.Players {
-		if p.Name == session.Nickname && p.WebSocketID != session.PlayerID && p.IsConnected {
-			lh.lobby.Mutex.Unlock()
-			log.Printf("⚠️ Nickname %s is now taken by another player", session.Nickname)
-			lh.sendError(player, "Nickname already taken")
-			return
-		}
-	}
-
-	log.Printf("🔄 Restoring session for player %s (%s)", session.Nickname, session.SessionID)
-
-	// Update player connection
-	player.WebSocketID = session.PlayerID
-	player.Name = session.Nickname
-	player.Lives = 3
-	player.LobbyID = session.LobbyID
-
-	// Re-add to lobby
-	lh.lobby.Players[player.WebSocketID] = player
-	lh.lobby.Mutex.Unlock()
-
-	// Update session
-	session.LastActiveTime = time.Now()
-	session.IsActive = true
-
-	missedEvents := lh.getMissedEventsSince(session, time.Unix(0, reconnectData.LastSyncTimestamp*int64(time.Millisecond)))
-
-	restoredMsg := &models.WebSocketMessage{
-		Type: "session_restored",
-		Data: map[string]interface{}{
-			"sessionId":     session.SessionID,
-			"playerId":      session.PlayerID,
-			"nickname":      session.Nickname,
-			"lobbyId":       session.LobbyID,
-			"currentScreen": session.CurrentScreen,
-			"players":       lh.getCurrentPlayers(),
-			"messages":      lh.getRecentMessages(),
-			"waitingTimer":  lh.getCurrentWaitingTimer(),
-			"gameTimer":     lh.getCurrentGameTimer(),
-		},
-	}
-	lh.sendToPlayer(player, restoredMsg)
-
-	if len(missedEvents) > 0 {
-		missedMsg := &models.WebSocketMessage{
-			Type: "missed_events",
-			Data: map[string]interface{}{
-				"events": missedEvents,
-			},
-		}
-		lh.sendToPlayer(player, missedMsg)
-	}
-
-	lh.broadcastToLobby("", &models.WebSocketMessage{
-		Type: models.MSG_PLAYER_JOINED,
-		Data: &models.PlayerJoinedEvent{
-			Player:      player,
+	lobbyUpdate := &models.WebSocketMessage{
+		Type: models.MSG_LOBBY_UPDATE,
+		Data: &models.LobbyUpdate{
+			Lobby:       lh.lobby,
 			PlayerCount: len(lh.lobby.Players),
-			Message:     session.Nickname + " reconnected",
+			Status:      lh.lobby.Status,
 		},
-	})
-
-	log.Printf("✅ Session restored successfully for %s", session.Nickname)
-}
-
-// Helper method to clean up inactive sessions for a nickname
-func (lh *LobbyHandler) cleanupInactiveSessionsForNickname(nickname string) {
-	lh.sessionMutex.Lock()
-	defer lh.sessionMutex.Unlock()
-
-	for sessionId, session := range lh.sessions {
-		if session.Nickname == nickname && !session.IsActive {
-			delete(lh.sessions, sessionId)
-			log.Printf("🗑️ Cleaned up inactive session for nickname %s", nickname)
-		}
-	}
-}
-
-func (lh *LobbyHandler) createSession(sessionId string, player *models.WebSocketPlayer) {
-	lh.sessionMutex.Lock()
-	defer lh.sessionMutex.Unlock()
-
-	lh.sessions[sessionId] = &models.SessionData{
-		SessionID:      sessionId,
-		PlayerID:       player.WebSocketID,
-		Nickname:       player.Name,
-		LobbyID:        player.LobbyID,
-		LastActiveTime: time.Now(),
-		CurrentScreen:  "waiting",
-		IsActive:       true,
-		MissedEvents:   make([]models.WebSocketMessage, 0),
-		LastSyncTime:   time.Now(),
 	}
 
-	log.Printf("💾 Session created: %s for player %s", sessionId, player.Name)
-}
-
-func (lh *LobbyHandler) getSession(sessionId string) *models.SessionData {
-	lh.sessionMutex.RLock()
-	defer lh.sessionMutex.RUnlock()
-	return lh.sessions[sessionId]
-}
-
-func (lh *LobbyHandler) updateSessionActivity(sessionId string) {
-	lh.sessionMutex.Lock()
-	defer lh.sessionMutex.Unlock()
-
-	if session, exists := lh.sessions[sessionId]; exists {
-		session.LastActiveTime = time.Now()
-		session.LastSyncTime = time.Now()
-	}
-}
-
-func (lh *LobbyHandler) storeEventForSessions(event models.WebSocketMessage) {
-	lh.sessionMutex.Lock()
-	defer lh.sessionMutex.Unlock()
-
-	for _, session := range lh.sessions {
-		if !session.IsActive {
-			session.MissedEvents = append(session.MissedEvents, event)
-
-			if len(session.MissedEvents) > 50 {
-				session.MissedEvents = session.MissedEvents[1:]
-			}
-		}
-	}
-}
-
-func (lh *LobbyHandler) getMissedEventsSince(session *models.SessionData, since time.Time) []models.WebSocketMessage {
-	var missedEvents []models.WebSocketMessage
-
-	for _, event := range session.MissedEvents {
-		if eventTime, ok := event.Data.(map[string]interface{})["timestamp"]; ok {
-			if timestamp, ok := eventTime.(time.Time); ok && timestamp.After(since) {
-				missedEvents = append(missedEvents, event)
-			}
-		}
-	}
-
-	session.MissedEvents = make([]models.WebSocketMessage, 0)
-
-	return missedEvents
-}
-
-// FIXED: More aggressive cleanup - every 1 minute, 1 hour expiry
-func (lh *LobbyHandler) cleanupExpiredSessions() {
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			lh.sessionMutex.Lock()
-			oneHourAgo := time.Now().Add(-1 * time.Hour)
-
-			count := 0
-			for sessionId, session := range lh.sessions {
-				if session.LastActiveTime.Before(oneHourAgo) {
-					delete(lh.sessions, sessionId)
-					count++
-				}
-			}
-
-			if count > 0 {
-				log.Printf("🗑️ Cleaned up %d expired sessions", count)
-			}
-			lh.sessionMutex.Unlock()
-		}
-	}
-}
-
-func (lh *LobbyHandler) getCurrentPlayers() []map[string]interface{} {
-	lh.lobby.Mutex.RLock()
-	defer lh.lobby.Mutex.RUnlock()
-
-	players := make([]map[string]interface{}, 0)
-	for _, player := range lh.lobby.Players {
-		players = append(players, map[string]interface{}{
-			"id":          player.WebSocketID,
-			"WebSocketID": player.WebSocketID,
-			"nickname":    player.Name,
-			"lives":       player.Lives,
-			"isHost":      lh.lobby.Host == player.WebSocketID,
-		})
-	}
-	return players
-}
-
-func (lh *LobbyHandler) getRecentMessages() []models.ChatMessage {
-	lh.lobby.Mutex.RLock()
-	defer lh.lobby.Mutex.RUnlock()
-	return lh.lobby.Messages
-}
-
-func (lh *LobbyHandler) getCurrentWaitingTimer() interface{} {
-	lh.lobby.Mutex.RLock()
-	defer lh.lobby.Mutex.RUnlock()
-	if lh.lobby.Status == "waiting_for_players" {
-		return nil
-	}
-	return nil
-}
-
-func (lh *LobbyHandler) getCurrentGameTimer() interface{} {
-	lh.lobby.Mutex.RLock()
-	defer lh.lobby.Mutex.RUnlock()
-	if lh.lobby.Status == "starting" {
-		return nil
-	}
-	return nil
-}
-
-func (lh *LobbyHandler) generateSessionID() string {
-	return "session_" + time.Now().Format("20060102150405") + "_" + randomString(8)
-}
-
-func (lh *LobbyHandler) findSessionByPlayerId(playerId string) string {
-	lh.sessionMutex.RLock()
-	defer lh.sessionMutex.RUnlock()
-
-	for sessionId, session := range lh.sessions {
-		if session.PlayerID == playerId {
-			return sessionId
-		}
-	}
-	return ""
+	lh.broadcastToLobby("", lobbyUpdate)
 }
 
 func (lh *LobbyHandler) handleChatMessage(player *models.WebSocketPlayer, message *models.WebSocketMessage) {

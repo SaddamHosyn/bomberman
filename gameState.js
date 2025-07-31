@@ -12,7 +12,6 @@ export class GameState {
             currentScreen: 'nickname',
             nickname: '',
             playerId: null,
-            sessionId: null,
             players: [],
             messages: [],
             waitingTimer: null,
@@ -23,141 +22,26 @@ export class GameState {
             chatError: null,
             isJoining: false,
             isConnected: false,
-            isReconnecting: false,
-            lastSyncTimestamp: null
+            isReconnecting: false
         };
         this.listeners = [];
         this.websocket = null;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 3;
-        this.sessionRestoreTimeout = null;
-        this.isSessionRestoreActive = false;
-        
-        // Only try session restore if we're not explicitly starting fresh
-        if (!this.shouldStartFresh()) {
-            this.tryRestoreSession();
-        } else {
-            console.log('🔸 Starting fresh session');
-            this.setState({ currentScreen: 'nickname' });
-        }
     }
 
-    /**
-     * Check if we should start fresh (bypass session restore)
-     */
-    shouldStartFresh() {
-        // Check if there's a URL parameter or flag to start fresh
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get('fresh') === 'true' || sessionStorage.getItem('force_fresh') === 'true';
-    }
-
-    /**
-     * Generate session ID
-     */
-    generateSessionId() {
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substring(2, 8);
-        return `session_${timestamp}_${random}`;
-    }
-
-    /**
-     * Save session to localStorage
-     */
-    saveSession(sessionData) {
-        const sessionInfo = {
-            sessionId: sessionData.sessionId,
-            nickname: sessionData.nickname,
-            playerId: sessionData.playerId,
-            lobbyId: sessionData.lobbyId,
-            currentScreen: this.state.currentScreen,
-            timestamp: Date.now(),
-            lastSyncTimestamp: this.state.lastSyncTimestamp
-        };
-        localStorage.setItem('bomberman_session', JSON.stringify(sessionInfo));
-        console.log('💾 Session saved:', sessionInfo);
-    }
-
-    /**
-     * Get stored session
-     */
-    getStoredSession() {
-        try {
-            const stored = localStorage.getItem('bomberman_session');
-            if (!stored) return null;
-            
-            const session = JSON.parse(stored);
-            const oneHourAgo = Date.now() - (60 * 60 * 1000); // 1 hour expiry instead of 2
-            
-            if (session.timestamp < oneHourAgo) {
-                console.log('⏰ Session expired, clearing...');
-                this.clearSession();
-                return null;
-            }
-            
-            return session;
-        } catch (error) {
-            console.error('Error reading session:', error);
-            this.clearSession();
-            return null;
-        }
-    }
-
-    /**
-     * Try to restore session on page load
-     */
-    tryRestoreSession() {
-        const session = this.getStoredSession();
-        if (session && !this.isSessionRestoreActive) {
-            console.log('🔄 Found existing session, attempting restore:', session);
-            this.isSessionRestoreActive = true;
-            
-            this.setState({
-                nickname: session.nickname,
-                playerId: session.playerId,
-                sessionId: session.sessionId,
-                currentScreen: 'connecting',
-                isReconnecting: true,
-                lastSyncTimestamp: session.lastSyncTimestamp
-            });
-            
-            // Set a 5-second timeout for session restoration
-            this.sessionRestoreTimeout = setTimeout(() => {
-                console.log('⏰ Session restoration timeout - falling back to fresh start');
-                this.forceStartFresh('Session restoration timeout');
-            }, 5000);
-            
-            this.reconnectWithSession(session);
-        } else {
-            console.log('🔸 No valid session found or restore already active');
-            this.setState({ currentScreen: 'nickname' });
-        }
-    }
-
-    /**
-     * Force start fresh session
-     */
+   
     forceStartFresh(reason) {
         console.log('🆕 Forcing fresh start:', reason);
-        
-        this.isSessionRestoreActive = false;
-        
-        if (this.sessionRestoreTimeout) {
-            clearTimeout(this.sessionRestoreTimeout);
-            this.sessionRestoreTimeout = null;
-        }
         
         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
             this.websocket.close();
         }
         
-        this.clearSession();
-        sessionStorage.setItem('force_fresh', 'true');
-        
         this.setState({
             currentScreen: 'nickname',
             nickname: '',
             playerId: null,
-            sessionId: null,
             players: [],
             messages: [],
             waitingTimer: null,
@@ -172,19 +56,10 @@ export class GameState {
     }
 
     /**
-     * Enhanced connection with session support
+     * Connect and join game with nickname
      */
     connectAndJoinGame(nickname) {
         console.log('🔗 Connecting to WebSocket with nickname:', nickname);
-        
-        // Clear fresh start flag
-        sessionStorage.removeItem('force_fresh');
-        
-        // Clear any existing session restore timeout
-        if (this.sessionRestoreTimeout) {
-            clearTimeout(this.sessionRestoreTimeout);
-            this.sessionRestoreTimeout = null;
-        }
         
         this.setState({
             isJoining: true,
@@ -209,16 +84,10 @@ export class GameState {
                     nickname: nickname
                 });
                 
-                // Generate new session ID for fresh connection
-                const sessionId = this.generateSessionId();
-                this.setState({ sessionId: sessionId });
-                
                 const joinMessage = {
                     type: 'join_lobby',
                     data: {
-                        nickname: nickname,
-                        sessionId: sessionId,
-                        isNewSession: true
+                        nickname: nickname
                     }
                 };
                 
@@ -247,7 +116,7 @@ export class GameState {
                 });
                 
                 // Only auto-reconnect for unexpected closes, not manual closes
-                if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts && !this.isSessionRestoreActive) {
+                if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
                     setTimeout(() => this.attemptReconnect(), 2000 * (this.reconnectAttempts + 1));
                 }
             };
@@ -263,68 +132,6 @@ export class GameState {
     }
 
     /**
-     * Reconnect with existing session
-     */
-    reconnectWithSession(session) {
-        console.log('🔄 Attempting session reconnection...');
-        
-        this.setState({
-            isReconnecting: true,
-            error: null
-        });
-
-        const wsUrl = `ws://localhost:8080/ws/lobby`;
-        
-        try {
-            if (this.websocket) {
-                this.websocket.close();
-            }
-            
-            this.websocket = new WebSocket(wsUrl);
-            
-            this.websocket.onopen = () => {
-                console.log('✅ WebSocket connected for session restore');
-                this.setState({
-                    isConnected: true
-                });
-                
-                const reconnectMessage = {
-                    type: 'reconnect_session',
-                    data: {
-                        sessionId: session.sessionId,
-                        playerId: session.playerId,
-                        nickname: session.nickname,
-                        lastSyncTimestamp: session.lastSyncTimestamp || 0
-                    }
-                };
-                
-                console.log('📤 SENDING SESSION RECONNECT:', reconnectMessage);
-                this.websocket.send(JSON.stringify(reconnectMessage));
-            };
-            
-            this.websocket.onmessage = (event) => {
-                this.handleWebSocketMessage(event);
-            };
-
-            this.websocket.onerror = (error) => {
-                console.error('❌ Session reconnection failed:', error);
-                this.forceStartFresh('Session reconnection error');
-            };
-
-            this.websocket.onclose = (event) => {
-                console.log('🔌 Session reconnect WebSocket closed:', event.code);
-                if (event.code !== 1000 && this.isSessionRestoreActive) {
-                    this.forceStartFresh('Session reconnect connection closed');
-                }
-            };
-
-        } catch (error) {
-            console.error('❌ Session reconnection error:', error);
-            this.forceStartFresh('Session reconnection exception');
-        }
-    }
-
-    /**
      * Enhanced message handling
      */
     handleWebSocketMessage(event) {
@@ -335,21 +142,11 @@ export class GameState {
             console.log('Data:', message.data);
             console.log('==============================');
 
-            this.setState({ lastSyncTimestamp: Date.now() });
-
             const messageData = message.data || message.Data || {};
 
             switch (message.type) {
                 case 'success':
                     this.handleSuccessMessage(messageData);
-                    break;
-
-                case 'session_restored':
-                    this.handleSessionRestored(messageData);
-                    break;
-
-                case 'missed_events':
-                    this.handleMissedEvents(messageData);
                     break;
 
                 case 'player_joined':
@@ -397,107 +194,43 @@ export class GameState {
      */
     handleSuccessMessage(messageData) {
         console.log('✅ Success message:', messageData);
-        
-        // Clear session restore timeout on any success
-        if (this.sessionRestoreTimeout) {
-            clearTimeout(this.sessionRestoreTimeout);
-            this.sessionRestoreTimeout = null;
-        }
-        this.isSessionRestoreActive = false;
-        
+
         if (messageData.message?.includes('Connected successfully - please provide nickname')) {
             console.log('📡 Connected to WebSocket, join_lobby message sent');
         }
         else if (messageData.message?.includes('Joined lobby successfully')) {
             console.log('🎉 SUCCESSFULLY JOINED LOBBY!');
-            
-            // Save session after successful join
-            this.saveSession({
-                sessionId: this.state.sessionId || messageData.sessionId,
-                nickname: messageData.nickname,
-                playerId: messageData.playerId,
-                lobbyId: messageData.lobbyId
-            });
-            
-            const currentPlayer = {
-                id: messageData.playerId,
-                WebSocketID: messageData.playerId,
-                nickname: messageData.nickname,
-                lives: 3,
-                isHost: false
-            };
-            
+
+            // Use the players list from server if available, otherwise create current player
+            let players = [];
+            if (messageData.players && Array.isArray(messageData.players)) {
+                players = messageData.players.map(p => ({
+                    id: p.WebSocketID || p.id,
+                    WebSocketID: p.WebSocketID || p.id,
+                    nickname: p.nickname,
+                    lives: p.lives || 3,
+                    isHost: p.isHost || false
+                }));
+            } else {
+                // Fallback: just add current player
+                players = [{
+                    id: messageData.playerId,
+                    WebSocketID: messageData.playerId,
+                    nickname: messageData.nickname,
+                    lives: 3,
+                    isHost: messageData.isHost || false
+                }];
+            }
+
             this.setState({
                 currentScreen: 'waiting',
                 isJoining: false,
                 isReconnecting: false,
                 playerId: messageData.playerId,
-                players: [currentPlayer],
+                players: players, // Use the full players list from server
                 error: null
             });
         }
-    }
-
-    /**
-     * Handle session restored message
-     */
-    handleSessionRestored(messageData) {
-        console.log('🔄 Session restored successfully:', messageData);
-        
-        if (this.sessionRestoreTimeout) {
-            clearTimeout(this.sessionRestoreTimeout);
-            this.sessionRestoreTimeout = null;
-        }
-        this.isSessionRestoreActive = false;
-        
-        // Update session with latest data
-        this.saveSession({
-            sessionId: messageData.sessionId,
-            nickname: messageData.nickname,
-            playerId: messageData.playerId,
-            lobbyId: messageData.lobbyId
-        });
-        
-        this.setState({
-            currentScreen: messageData.currentScreen || 'waiting',
-            isReconnecting: false,
-            playerId: messageData.playerId,
-            players: messageData.players || [],
-            messages: messageData.messages || [],
-            waitingTimer: messageData.waitingTimer,
-            gameTimer: messageData.gameTimer,
-            error: null
-        });
-    }
-
-    /**
-     * Handle missed events
-     */
-    handleMissedEvents(messageData) {
-        console.log('📥 Processing missed events:', messageData);
-        
-        const events = messageData.events || [];
-        events.forEach(event => {
-            console.log('⚡ Replaying event:', event);
-            
-            switch (event.type) {
-                case 'player_joined':
-                    this.handlePlayerJoined(event.data);
-                    break;
-                case 'player_left':
-                    this.handlePlayerLeft(event.data);
-                    break;
-                case 'chat_message':
-                    this.handleChatMessage(event.data);
-                    break;
-                case 'lobby_update':
-                    this.handleLobbyUpdate(event.data);
-                    break;
-                case 'game_start':
-                    this.handleGameStart(event.data);
-                    break;
-            }
-        });
     }
 
     /**
@@ -550,15 +283,24 @@ export class GameState {
                 lives: data.Player.Lives,
                 isHost: false
             };
-            
-            const updatedPlayers = this.state.players.filter(p => 
+
+            // Don't add if it's the current player (avoid duplicates)
+            if (newPlayer.WebSocketID === this.state.playerId) {
+                console.log('👤 Ignoring self-join message');
+                return;
+            }
+
+            // Remove any existing player with same ID and add new one
+            const updatedPlayers = this.state.players.filter(p =>
                 p.WebSocketID !== newPlayer.WebSocketID
             );
             updatedPlayers.push(newPlayer);
-            
+
             this.setState({
                 players: updatedPlayers
             });
+
+            console.log('👤 Updated players list:', updatedPlayers);
         }
     }
 
@@ -650,30 +392,10 @@ export class GameState {
     handleError(data) {
         console.log('❌ Error data received:', data);
         
-        // If session-related error during reconnection, force fresh start
-        if (this.state.isReconnecting && (
-            data.message?.includes('Session not found') || 
-            data.message?.includes('Session expired') ||
-            data.message?.includes('Invalid session') ||
-            data.message?.includes('Nickname already taken')
-        )) {
-            console.log('🔄 Session error during reconnection, forcing fresh start');
-            this.forceStartFresh('Session validation failed: ' + data.message);
-            return;
-        }
-        
         this.setState({
             error: data.message || data.error || 'An error occurred',
             isJoining: false
         });
-    }
-
-    /**
-     * Clear session
-     */
-    clearSession() {
-        localStorage.removeItem('bomberman_session');
-        console.log('🗑️ Session cleared');
     }
 
     /**
@@ -755,23 +477,13 @@ export class GameState {
     }
 
     /**
-     * Leave game
-     */
-    leaveGame() {
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.close(1000, 'User left game');
-        }
-        this.resetToNickname();
-    }
-
-    /**
      * Attempt reconnect
      */
     attemptReconnect() {
         this.reconnectAttempts++;
         console.log(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
         
-        if (this.state.nickname && !this.isSessionRestoreActive) {
+        if (this.state.nickname) {
             setTimeout(() => {
                 this.connectAndJoinGame(this.state.nickname);
             }, 1000);
@@ -786,14 +498,6 @@ export class GameState {
             this.websocket.close();
             this.websocket = null;
         }
-
-        if (this.sessionRestoreTimeout) {
-            clearTimeout(this.sessionRestoreTimeout);
-            this.sessionRestoreTimeout = null;
-        }
-
-        this.isSessionRestoreActive = false;
-        sessionStorage.removeItem('force_fresh');
 
         this.setState({
             currentScreen: 'nickname',
@@ -820,10 +524,6 @@ export class GameState {
         if (this.websocket) {
             this.websocket.close();
         }
-        if (this.sessionRestoreTimeout) {
-            clearTimeout(this.sessionRestoreTimeout);
-        }
-        sessionStorage.removeItem('force_fresh');
         this.listeners = [];
     }
 }

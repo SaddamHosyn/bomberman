@@ -9,7 +9,7 @@ import { createElement } from '../mini-framework/VirtualDom.js';
  * Render the waiting room screen
  */
 export function WaitingRoom(props) {
-    const { onSendMessage, onLeaveRoom, ...state } = props;
+    const { onSendMessage, ...state } = props;
     
     return createElement('div', { className: 'waiting-room fade-in' },
         // Room header
@@ -38,21 +38,7 @@ export function WaitingRoom(props) {
             )
         ),
         
-        // Leave room button
-        createElement('div', { 
-            style: { 
-                textAlign: 'center', 
-                marginTop: '20px' 
-            } 
-        },
-            createElement('button', {
-                className: 'join-button',
-                style: { 
-                    background: 'linear-gradient(45deg, #e74c3c, #c0392b)' 
-                },
-                onclick: onLeaveRoom
-            }, 'Leave Room')
-        )
+      
     );
 }
 
