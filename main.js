@@ -1,5 +1,5 @@
 /**
- * @fileoverview Bomberman DOM - UI Demo (Nickname + Waiting Room)
+ * @fileoverview Bomberman DOM - UI Demo (Nickname + Waiting Room + Game)
  * @author Chan
  */
 
@@ -8,6 +8,7 @@ import { createElement } from './mini-framework/VirtualDom.js';
 import { GameState } from './gameState.js';
 import { NicknameScreen } from './components/NicknameScreen.js';
 import { WaitingRoom } from './components/WaitingRoom.js';
+import { GameScreen } from './components/GameScreen.js';
 
 // Initialize game state (demo mode)
 const gameState = new GameState();
@@ -34,17 +35,12 @@ function renderApp() {
             });
         
         case 'game':
-            // TODO: Implement game screen
-            return createElement('div', {
-                style: {
-                    textAlign: 'center',
-                    padding: '50px'
-                }
-            },
-                createElement('h1', {}, 'Game Starting...'),
-                createElement('p', {}, 'Game implementation coming soon!'),
-               
-            );
+            return GameScreen({
+                state: state,
+                onMove: handlePlayerMove,
+                onPlaceBomb: handlePlaceBomb,
+                onLeaveGame: handleLeaveGame
+            });
         
         default:
             return NicknameScreen(state, handleJoinGame);
@@ -83,9 +79,32 @@ function handleJoinGame(nickname) {
  * Handle sending a chat message (demo simulation)
  */
 function handleSendMessage(message) {
-
     gameState.sendChatMessage(message);
-  
+}
+
+/**
+ * Handle player movement in game
+ */
+function handlePlayerMove(direction) {
+    console.log('Player move:', direction);
+    gameState.sendPlayerMove(direction);
+}
+
+/**
+ * Handle bomb placement in game
+ */
+function handlePlaceBomb() {
+    console.log('Place bomb');
+    gameState.sendPlaceBomb();
+}
+
+/**
+ * Handle leaving the game
+ */
+function handleLeaveGame() {
+    console.log('Leave game');
+    // Return to nickname screen
+    gameState.forceStartFresh('Player left game');
 }
 
 

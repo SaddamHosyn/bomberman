@@ -177,6 +177,16 @@ export class GameState {
                     this.handleGameStart(messageData);
                     break;
                 
+                case 'game_state_update':
+                    this.handleGameStateUpdate(messageData);
+                    break;
+                
+                case 'game_update':
+                    console.log('🔄 Processing game_update message');
+                    this.handleGameUpdate(messageData);
+                    console.log('✅ game_update processed successfully');
+                    break;
+                
                 case 'error':
                     this.handleError(messageData);
                     break;
@@ -204,12 +214,14 @@ export class GameState {
             // Use the players list from server if available, otherwise create current player
             let players = [];
             if (messageData.players && Array.isArray(messageData.players)) {
-                players = messageData.players.map(p => ({
+                players = messageData.players.map((p, index) => ({
                     id: p.WebSocketID || p.id,
                     WebSocketID: p.WebSocketID || p.id,
                     nickname: p.nickname,
                     lives: p.lives || 3,
-                    isHost: p.isHost || false
+                    isHost: p.isHost || false,
+                    position: this.getStartingPosition(index),
+                    alive: true
                 }));
             } else {
                 // Fallback: just add current player
@@ -218,6 +230,8 @@ export class GameState {
                     WebSocketID: messageData.playerId,
                     nickname: messageData.nickname,
                     lives: 3,
+                    position: this.getStartingPosition(0),
+                    alive: true,
                     isHost: messageData.isHost || false
                 }];
             }
@@ -241,31 +255,39 @@ export class GameState {
         
         let players = [];
         if (data.lobby && data.lobby.players) {
-            players = Object.values(data.lobby.players).map(player => ({
+            players = Object.values(data.lobby.players).map((player, index) => ({
                 id: player.webSocketId,
                 WebSocketID: player.webSocketId,
                 nickname: player.Name,
                 lives: player.Lives,
-                isHost: data.lobby.host === player.webSocketId
+                isHost: data.lobby.host === player.webSocketId,
+                position: this.getStartingPosition(index),
+                alive: true
             }));
         }
         
         let waitingTimer = null;
         let gameTimer = null;
         
+        // Handle different lobby statuses - but DON'T auto-transition to game
         if (data.status === "waiting_for_players" && data.timeLeft > 0) {
             waitingTimer = data.timeLeft;
             console.log('⏳ SETTING WAITING TIMER:', waitingTimer);
         } else if (data.status === "starting" && data.timeLeft > 0) {
             gameTimer = data.timeLeft;
             console.log('🎮 SETTING GAME TIMER:', gameTimer);
+        } else if (data.status === "playing") {
+            // Game is in progress, but let game_start or game_state_update handle the transition
+            console.log('🎮 Game is playing - waiting for game_start message to transition');
+            waitingTimer = null;
+            gameTimer = null;
         }
         
         this.setState({
             players: players,
             playerId: data.your_player_id || data.player_id || this.state.playerId,
             waitingTimer: waitingTimer,
-            gameTimer: gameTimer,
+            gameTimer: gameTimer
         });
     }
 
@@ -276,12 +298,15 @@ export class GameState {
         console.log('👤 Player joined:', data);
         
         if (data.Player) {
+            const currentPlayers = this.state.players || [];
             const newPlayer = {
                 id: data.Player.WebSocketID,
                 WebSocketID: data.Player.WebSocketID,
                 nickname: data.Player.Name,
                 lives: data.Player.Lives,
-                isHost: false
+                isHost: false,
+                position: this.getStartingPosition(currentPlayers.length),
+                alive: true
             };
 
             // Don't add if it's the current player (avoid duplicates)
@@ -368,10 +393,22 @@ export class GameState {
      * Handle timer updates
      */
     handleTimerUpdate(data) {
-        this.setState({
-            waitingTimer: data.waiting_timer,
-            gameTimer: data.game_timer
-        });
+        console.log('⏱️ Timer update received:', data);
+        
+        // Only transition when we get explicit game_timer of 0 AND we're in countdown phase
+        if (data.game_timer === 0 && this.state.gameTimer > 0 && this.state.currentScreen !== 'game') {
+            console.log('🎮 Game countdown finished - transitioning to game');
+            this.setState({
+                currentScreen: 'game',
+                waitingTimer: null,
+                gameTimer: null
+            });
+        } else {
+            this.setState({
+                waitingTimer: data.waiting_timer,
+                gameTimer: data.game_timer
+            });
+        }
     }
 
     /**
@@ -515,6 +552,415 @@ export class GameState {
         });
         
         this.reconnectAttempts = 0;
+    }
+
+    /**
+     * Send player move to server
+     */
+    sendPlayerMove(direction) {
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            const moveMessage = {
+                type: 'player_move',
+                data: {
+                    direction: direction
+                }
+            };
+            console.log('📤 SENDING PLAYER MOVE:', moveMessage);
+            this.websocket.send(JSON.stringify(moveMessage));
+        } else {
+            console.warn('⚠️ Cannot send move - WebSocket not connected');
+        }
+    }
+
+    /**
+     * Send bomb placement to server
+     */
+    sendPlaceBomb() {
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            const bombMessage = {
+                type: 'place_bomb',
+                data: {}
+            };
+            console.log('📤 SENDING PLACE BOMB:', bombMessage);
+            this.websocket.send(JSON.stringify(bombMessage));
+        } else {
+            console.warn('⚠️ Cannot place bomb - WebSocket not connected');
+        }
+    }
+
+    /**
+     * Handle game state updates from server
+     */
+    handleGameStateUpdate(data) {
+        console.log('🎮 Game state update:', data);
+        
+        this.setState({
+            gameMap: data.map,
+            players: data.players,
+            bombs: data.bombs,
+            flames: data.flames,
+            powerUps: data.powerUps,
+            gameStatus: data.status,
+            winner: data.winner,
+            currentPlayer: data.players?.find(p => p.id === this.state.playerId)
+        });
+    }
+
+    /**
+     * Handle game update messages from server
+     */
+    handleGameUpdate(data) {
+        console.log('🎮 Game update received:', data);
+        
+        try {
+            if (data.type === 'player_move') {
+                console.log(`Player ${data.player_id} moved ${data.direction}`);
+                
+                // Update player position in local state
+                const updatedPlayers = [...(this.state.players || [])];
+                const playerIndex = updatedPlayers.findIndex(p => p.id === data.player_id);
+                
+                if (playerIndex >= 0) {
+                    const player = updatedPlayers[playerIndex];
+                    const currentPos = player.position || { x: 1, y: 1 };
+                    let newPos = { ...currentPos };
+                    
+                    // Calculate new position based on direction
+                    switch (data.direction) {
+                        case 'up':
+                            newPos.y = Math.max(0, currentPos.y - 1);
+                            break;
+                        case 'down':
+                            newPos.y = Math.min(12, currentPos.y + 1); // Assuming 13 height (0-12)
+                            break;
+                        case 'left':
+                            newPos.x = Math.max(0, currentPos.x - 1);
+                            break;
+                        case 'right':
+                            newPos.x = Math.min(14, currentPos.x + 1); // Assuming 15 width (0-14)
+                            break;
+                    }
+                    
+                    // Update player position
+                    updatedPlayers[playerIndex] = {
+                        ...player,
+                        position: newPos
+                    };
+                    
+                    console.log(`🎯 Player ${data.player_id} moved from (${currentPos.x},${currentPos.y}) to (${newPos.x},${newPos.y})`);
+                    
+                    // Check for power-up collection
+                    this.checkPowerUpCollection(data.player_id, newPos);
+                    
+                    // Update state with new player positions
+                    this.setState({
+                        players: updatedPlayers
+                    });
+                }
+                
+                // Find player number for consistent CSS class matching
+                const players = this.state.players || [];
+                const sortedPlayerIds = players.map(p => p.id).sort();
+                const playerIndex2 = sortedPlayerIds.indexOf(data.player_id);
+                const playerNumber = playerIndex2 >= 0 ? playerIndex2 + 1 : 1;
+                
+                console.log(`🎯 Player ${data.player_id} mapped to player number ${playerNumber}`);
+                
+                // Add temporary movement animation to the player
+                const playerElements = document.querySelectorAll(`.player.player-${playerNumber}`);
+                console.log(`🎨 Found ${playerElements.length} player elements with class .player.player-${playerNumber}`);
+                
+                playerElements.forEach(element => {
+                    element.classList.add('moving');
+                    setTimeout(() => {
+                        element.classList.remove('moving');
+                    }, 300); // Remove after animation completes
+                });
+            } else if (data.type === 'bomb_placed') {
+                console.log(`Player ${data.player_id} placed a bomb`);
+                
+                // Find player who placed the bomb
+                const player = this.state.players?.find(p => p.id === data.player_id);
+                if (player && player.position) {
+                    // Check if player hasn't exceeded bomb limit
+                    const currentBombs = this.state.bombs || [];
+                    const playerBombs = currentBombs.filter(b => b.ownerId === data.player_id);
+                    const maxBombs = player.maxBombs || 1;
+                    
+                    if (playerBombs.length >= maxBombs) {
+                        console.log(`⚠️ Player ${data.player_id} has reached bomb limit (${maxBombs})`);
+                        return;
+                    }
+                    
+                    const newBomb = {
+                        id: `bomb_${Date.now()}_${Math.random()}`,
+                        position: { ...player.position },
+                        ownerId: data.player_id,
+                        timer: 3, // 3 seconds until explosion
+                        timestamp: Date.now()
+                    };
+                    
+                    this.setState({
+                        bombs: [...currentBombs, newBomb]
+                    });
+                    
+                    console.log(`💣 Bomb placed at (${player.position.x}, ${player.position.y}) (${playerBombs.length + 1}/${maxBombs})`);
+                    
+                    // Start bomb countdown timer
+                    setTimeout(() => {
+                        this.explodeBomb(newBomb.id);
+                    }, 3000);
+                }
+            }
+            
+            // Update game state if needed
+            this.setState({
+                lastUpdate: data.timestamp || Date.now()
+            });
+            
+            console.log('✅ handleGameUpdate completed successfully');
+        } catch (error) {
+            console.error('❌ Error in handleGameUpdate:', error);
+            throw error; // Re-throw to see if this is causing the issue
+        }
+    }
+
+    /**
+     * Handle bomb explosion
+     */
+    explodeBomb(bombId) {
+        console.log(`💥 Exploding bomb: ${bombId}`);
+        
+        const bombs = this.state.bombs || [];
+        const bomb = bombs.find(b => b.id === bombId);
+        
+        if (!bomb) {
+            console.warn(`⚠️ Bomb ${bombId} not found for explosion`);
+            return;
+        }
+        
+        // Remove the bomb from state
+        const remainingBombs = bombs.filter(b => b.id !== bombId);
+        
+        // Find bomb owner to get their flame range
+        const bombOwner = this.state.players?.find(p => p.id === bomb.ownerId);
+        const flameRange = bombOwner?.flameRange || 2;
+        
+        console.log(`🔥 Bomb explosion with range ${flameRange} for player ${bomb.ownerId}`);
+        
+        // Create flame pattern (cross shape with player's range)
+        const flames = [];
+        const { x, y } = bomb.position;
+        
+        // Center flame
+        flames.push({
+            id: `flame_${Date.now()}_center`,
+            position: { x, y },
+            timestamp: Date.now()
+        });
+        
+        // Horizontal flames
+        for (let i = 1; i <= flameRange; i++) {
+            flames.push({
+                id: `flame_${Date.now()}_right_${i}`,
+                position: { x: x + i, y },
+                timestamp: Date.now()
+            });
+            flames.push({
+                id: `flame_${Date.now()}_left_${i}`,
+                position: { x: x - i, y },
+                timestamp: Date.now()
+            });
+        }
+        
+        // Vertical flames
+        for (let i = 1; i <= flameRange; i++) {
+            flames.push({
+                id: `flame_${Date.now()}_up_${i}`,
+                position: { x, y: y - i },
+                timestamp: Date.now()
+            });
+            flames.push({
+                id: `flame_${Date.now()}_down_${i}`,
+                position: { x, y: y + i },
+                timestamp: Date.now()
+            });
+        }
+        
+        // Filter flames that are within map boundaries
+        const validFlames = flames.filter(f => 
+            f.position.x >= 0 && f.position.x < 15 && 
+            f.position.y >= 0 && f.position.y < 13
+        );
+        
+        // Check for player damage
+        this.checkPlayerDamage(validFlames);
+        
+        // Check for block destruction
+        this.checkBlockDestruction(validFlames);
+        
+        // Update state with explosion
+        this.setState({
+            bombs: remainingBombs,
+            flames: [...(this.state.flames || []), ...validFlames]
+        });
+        
+        // Remove flames after 1 second
+        setTimeout(() => {
+            const currentFlames = this.state.flames || [];
+            const remainingFlames = currentFlames.filter(f => 
+                !validFlames.some(vf => vf.id === f.id)
+            );
+            this.setState({ flames: remainingFlames });
+        }, 1000);
+    }
+
+    /**
+     * Check if any players are damaged by flames
+     */
+    checkPlayerDamage(flames) {
+        const players = [...(this.state.players || [])];
+        let playersUpdated = false;
+        
+        players.forEach(player => {
+            if (!player.alive) return;
+            
+            const playerInFlame = flames.some(flame => 
+                flame.position.x === player.position?.x && 
+                flame.position.y === player.position?.y
+            );
+            
+            if (playerInFlame) {
+                player.lives = Math.max(0, (player.lives || 3) - 1);
+                player.alive = player.lives > 0;
+                playersUpdated = true;
+                
+                console.log(`💀 Player ${player.nickname} hit by explosion! Lives: ${player.lives}`);
+                
+                if (!player.alive) {
+                    console.log(`☠️ Player ${player.nickname} eliminated!`);
+                }
+            }
+        });
+        
+        if (playersUpdated) {
+            this.setState({ players });
+            
+            // Check for game over
+            const alivePlayers = players.filter(p => p.alive);
+            if (alivePlayers.length <= 1) {
+                console.log(`🏆 Game over! Winner: ${alivePlayers[0]?.nickname || 'None'}`);
+                // TODO: Handle game over
+            }
+        }
+    }
+
+    /**
+     * Check if flames destroy any blocks and spawn power-ups
+     */
+    checkBlockDestruction(flames) {
+        if (!this.state.gameBoard) return;
+        
+        const board = this.state.gameBoard.map(row => [...row]);
+        const newPowerUps = [...(this.state.powerUps || [])];
+        let boardUpdated = false;
+        
+        flames.forEach(flame => {
+            const { x, y } = flame.position;
+            
+            if (x >= 0 && x < board[0].length && y >= 0 && y < board.length) {
+                // Check if there's a destructible block
+                if (board[y][x] === 'B') {
+                    board[y][x] = '.'; // Destroy block
+                    boardUpdated = true;
+                    console.log(`💥 Block destroyed at (${x}, ${y})`);
+                    
+                    // 30% chance to spawn power-up
+                    if (Math.random() < 0.3) {
+                        const powerUpTypes = ['speed', 'bombs', 'flames'];
+                        const randomType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+                        
+                        newPowerUps.push({
+                            position: { x, y },
+                            type: randomType,
+                            id: `power_${Date.now()}_${x}_${y}`
+                        });
+                        
+                        console.log(`⚡ Power-up ${randomType} spawned at (${x}, ${y})`);
+                    }
+                }
+            }
+        });
+        
+        if (boardUpdated) {
+            this.setState({
+                gameBoard: board,
+                powerUps: newPowerUps
+            });
+        }
+    }
+
+    /**
+     * Check if a player collected a power-up
+     */
+    checkPowerUpCollection(playerId, position) {
+        const powerUps = [...(this.state.powerUps || [])];
+        const players = [...(this.state.players || [])];
+        
+        // Find power-up at player's position
+        const powerUpIndex = powerUps.findIndex(p => 
+            p.position.x === position.x && p.position.y === position.y
+        );
+        
+        if (powerUpIndex >= 0) {
+            const powerUp = powerUps[powerUpIndex];
+            const playerIndex = players.findIndex(p => p.id === playerId);
+            
+            if (playerIndex >= 0) {
+                const player = players[playerIndex];
+                
+                // Apply power-up effect
+                switch (powerUp.type) {
+                    case 'speed':
+                        player.speed = Math.min(5, (player.speed || 1) + 1);
+                        console.log(`⚡ Player ${playerId} gained speed! New speed: ${player.speed}`);
+                        break;
+                    case 'bombs':
+                        player.maxBombs = Math.min(8, (player.maxBombs || 1) + 1);
+                        console.log(`💣 Player ${playerId} can place more bombs! Max: ${player.maxBombs}`);
+                        break;
+                    case 'flames':
+                        player.flameRange = Math.min(8, (player.flameRange || 2) + 1);
+                        console.log(`🔥 Player ${playerId} has bigger explosions! Range: ${player.flameRange}`);
+                        break;
+                }
+                
+                // Remove collected power-up
+                powerUps.splice(powerUpIndex, 1);
+                
+                // Update state
+                this.setState({
+                    players: players,
+                    powerUps: powerUps
+                });
+                
+                console.log(`⭐ Player ${playerId} collected ${powerUp.type} power-up!`);
+            }
+        }
+    }
+
+    /**
+     * Get starting position for a player based on their index
+     */
+    getStartingPosition(playerIndex) {
+        const startingPositions = [
+            { x: 1, y: 1 },     // Player 1: Top-left corner
+            { x: 13, y: 1 },    // Player 2: Top-right corner  
+            { x: 1, y: 11 },    // Player 3: Bottom-left corner
+            { x: 13, y: 11 }    // Player 4: Bottom-right corner
+        ];
+        
+        return startingPositions[playerIndex % 4] || startingPositions[0];
     }
 
     /**
