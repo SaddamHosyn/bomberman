@@ -641,21 +641,28 @@ export class GameState {
                             break;
                     }
                     
-                    // Update player position
-                    updatedPlayers[playerIndex] = {
-                        ...player,
-                        position: newPos
-                    };
-                    
-                    console.log(`🎯 Player ${data.player_id} moved from (${currentPos.x},${currentPos.y}) to (${newPos.x},${newPos.y})`);
-                    
-                    // Check for power-up collection
-                    this.checkPowerUpCollection(data.player_id, newPos);
-                    
-                    // Update state with new player positions
-                    this.setState({
-                        players: updatedPlayers
-                    });
+                    // COLLISION DETECTION: Check if new position is valid
+                    if (this.isValidPosition(newPos)) {
+                        // Update player position
+                        updatedPlayers[playerIndex] = {
+                            ...player,
+                            position: newPos
+                        };
+                        
+                        console.log(`🎯 Player ${data.player_id} moved from (${currentPos.x},${currentPos.y}) to (${newPos.x},${newPos.y})`);
+                        
+                        // Check for power-up collection
+                        this.checkPowerUpCollection(data.player_id, newPos);
+                        
+                        // IMPORTANT: Force complete re-render to clear ghost players
+                        this.setState({
+                            players: updatedPlayers,
+                            lastUpdate: Date.now() // Force re-render
+                        });
+                    } else {
+                        console.log(`🚫 Player ${data.player_id} cannot move to (${newPos.x},${newPos.y}) - blocked!`);
+                        // Don't update position if blocked
+                    }
                 }
                 
                 // Find player number for consistent CSS class matching
@@ -802,17 +809,24 @@ export class GameState {
         // Update state with explosion
         this.setState({
             bombs: remainingBombs,
-            flames: [...(this.state.flames || []), ...validFlames]
+            flames: [...(this.state.flames || []), ...validFlames],
+            lastUpdate: Date.now() // Force re-render
         });
         
-        // Remove flames after 1 second
+        console.log(`🔥 Added ${validFlames.length} flames, total flames: ${[...(this.state.flames || []), ...validFlames].length}`);
+        
+        // Remove flames after 800ms (shorter for less ghosting)
         setTimeout(() => {
             const currentFlames = this.state.flames || [];
             const remainingFlames = currentFlames.filter(f => 
                 !validFlames.some(vf => vf.id === f.id)
             );
-            this.setState({ flames: remainingFlames });
-        }, 1000);
+            console.log(`🧹 Cleaning up flames: ${currentFlames.length} → ${remainingFlames.length}`);
+            this.setState({ 
+                flames: remainingFlames,
+                lastUpdate: Date.now() // Force re-render
+            });
+        }, 800);
     }
 
     /**
@@ -898,6 +912,43 @@ export class GameState {
                 powerUps: newPowerUps
             });
         }
+    }
+
+    /**
+     * Check if a position is valid (not blocked by walls/blocks)
+     */
+    isValidPosition(position) {
+        const { x, y } = position;
+        
+        // Check bounds
+        if (x < 0 || x >= 15 || y < 0 || y >= 13) {
+            return false;
+        }
+        
+        // Check for walls (fixed walls are at even coordinates)
+        if (x % 2 === 0 && y % 2 === 0) {
+            return false;
+        }
+        
+        // Check border walls
+        if (x === 0 || x === 14 || y === 0 || y === 12) {
+            return false;
+        }
+        
+        // Check for destructible blocks
+        if (this.state.gameBoard) {
+            if (this.state.gameBoard[y] && this.state.gameBoard[y][x] === 'B') {
+                return false;
+            }
+        }
+        
+        // Check for bombs
+        const bombs = this.state.bombs || [];
+        if (bombs.some(bomb => bomb.position.x === x && bomb.position.y === y)) {
+            return false;
+        }
+        
+        return true;
     }
 
     /**

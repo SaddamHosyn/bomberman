@@ -203,6 +203,8 @@ function renderGameBoard(state, onMove, onPlaceBomb) {
     },
         createElement('div', { 
             className: 'game-board',
+            // FORCE COMPLETE RE-RENDER: Add key that changes when players move
+            key: `board-${players.map(p => `${p.id}-${p.position?.x || 0}-${p.position?.y || 0}`).join('-')}`,
             style: {
                 gridTemplateColumns: `repeat(${gameMap.width || 15}, 1fr)`,
                 gridTemplateRows: `repeat(${gameMap.height || 13}, 1fr)`
@@ -230,81 +232,103 @@ function renderBoardCells(gameMap, players, bombs, flames, powerUps) {
 }
 
 /**
- * Render a single cell on the game board
+ * Render a single cell on the game board - OPTIMIZED for no ghosting
  */
 function renderCell(x, y, gameMap, players, bombs, flames, powerUps) {
     const cellKey = `cell-${x}-${y}`;
     let cellClass = 'game-cell';
-    const contents = [];
     
-    // Check for walls
+    // IMPORTANT: Only render ONE item per cell in priority order
+    // Priority: Player > Bomb > Flame > Power-up > Block > Wall > Empty
+    
+    // Check for players FIRST (highest priority)
+    const playersHere = players?.filter(p => 
+        p && p.position && p.position.x === x && p.position.y === y && p.alive
+    );
+    
+    if (playersHere && playersHere.length > 0) {
+        const player = playersHere[0]; // Only render first player if multiple
+        const playerNumber = getPlayerNumber(player.id, players || []);
+        
+        return createElement('div', {
+            key: cellKey,
+            className: `${cellClass} has-player`,
+            'data-x': x,
+            'data-y': y
+        }, createElement('div', { 
+            className: `player player-${playerNumber}`,
+            style: { color: getPlayerColor(playerNumber) }
+        }, getPlayerEmoji(playerNumber)));
+    }
+    
+    // Check for bomb (second priority)
+    const bomb = bombs?.find(b => b && b.position && b.position.x === x && b.position.y === y);
+    if (bomb) {
+        return createElement('div', {
+            key: cellKey,
+            className: `${cellClass} has-bomb`,
+            'data-x': x,
+            'data-y': y
+        }, createElement('div', { 
+            className: `bomb ${bomb.timer <= 1 ? 'exploding' : ''}` 
+        }, '💣'));
+    }
+    
+    // Check for flame (third priority)
+    const flame = flames?.find(f => f && f.position && f.position.x === x && f.position.y === y);
+    if (flame) {
+        return createElement('div', {
+            key: cellKey,
+            className: `${cellClass} has-flame`,
+            'data-x': x,
+            'data-y': y
+        }, createElement('div', { className: 'flame' }, '🔥'));
+    }
+    
+    // Check for power-up (fourth priority)
+    const powerUp = powerUps?.find(p => p && p.position && p.position.x === x && p.position.y === y);
+    if (powerUp) {
+        return createElement('div', {
+            key: cellKey,
+            className: `${cellClass} has-powerup`,
+            'data-x': x,
+            'data-y': y
+        }, createElement('div', { className: 'power-up' }, getPowerUpEmoji(powerUp.type)));
+    }
+    
+    // Check for walls (fifth priority)
     const wall = gameMap.walls?.find(w => w && w.position && w.position.x === x && w.position.y === y);
     if (wall) {
         cellClass += ' wall';
-        contents.push(
-            createElement('div', { className: 'wall-block' }, '🧱')
-        );
+        return createElement('div', {
+            key: cellKey,
+            className: cellClass,
+            'data-x': x,
+            'data-y': y
+        }, createElement('div', { className: 'wall-block' }, '🧱'));
     }
     
-    // Check for blocks
+    // Check for blocks (sixth priority)
     const block = gameMap.blocks?.find(b => 
         b && b.position && b.position.x === x && b.position.y === y && !b.destroyed
     );
     if (block) {
         cellClass += ' block';
-        contents.push(
-            createElement('div', { className: 'destructible-block' }, '📦')
-        );
+        return createElement('div', {
+            key: cellKey,
+            className: cellClass,
+            'data-x': x,
+            'data-y': y
+        }, createElement('div', { className: 'destructible-block' }, '📦'));
     }
     
-    // Add power-up if present
-    const powerUp = powerUps?.find(p => p && p.position && p.position.x === x && p.position.y === y);
-    if (powerUp) {
-        contents.push(
-            createElement('div', { className: 'power-up' }, getPowerUpEmoji(powerUp.type))
-        );
-    }
-    
-    // Add flame if present
-    const flame = flames?.find(f => f && f.position && f.position.x === x && f.position.y === y);
-    if (flame) {
-        contents.push(
-            createElement('div', { className: 'flame' }, '🔥')
-        );
-    }
-    
-    // Add bomb if present
-    const bomb = bombs?.find(b => b && b.position && b.position.x === x && b.position.y === y);
-    if (bomb) {
-        contents.push(
-            createElement('div', { 
-                className: `bomb ${bomb.timer <= 1 ? 'exploding' : ''}` 
-            }, '💣')
-        );
-    }
-    
-    // Add players if present
-    const playersHere = players?.filter(p => 
-        p && p.position && p.position.x === x && p.position.y === y && p.alive
-    );
-    if (playersHere && playersHere.length > 0) {
-        playersHere.forEach((player, index) => {
-            const playerNumber = getPlayerNumber(player.id, players || []);
-            contents.push(
-                createElement('div', { 
-                    className: `player player-${playerNumber}`,
-                    style: { color: getPlayerColor(playerNumber) }
-                }, getPlayerEmoji(playerNumber))
-            );
-        });
-    }
-    
+    // Empty cell (lowest priority)
     return createElement('div', {
         key: cellKey,
         className: cellClass,
         'data-x': x,
         'data-y': y
-    }, ...contents);
+    });
 }
 
 /**
