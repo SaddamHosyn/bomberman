@@ -129,6 +129,13 @@ func (lh *LobbyHandler) unregisterPlayer(player *models.WebSocketPlayer) {
 		delete(lh.lobby.Players, player.WebSocketID)
 		playerCount := len(lh.lobby.Players)
 
+		// Reset game status if game was in progress but now we don't have enough players
+		if lh.lobby.Status == "playing" && playerCount < lh.lobby.MinPlayers {
+			log.Printf("🔄 Resetting game status: not enough players (%d/%d)", playerCount, lh.lobby.MinPlayers)
+			lh.lobby.Status = "waiting"
+			lh.lobby.GameStarted = false
+		}
+
 		if lh.lobby.Host == player.WebSocketID && playerCount > 0 {
 			for playerID := range lh.lobby.Players {
 				lh.lobby.Host = playerID
@@ -152,6 +159,9 @@ func (lh *LobbyHandler) unregisterPlayer(player *models.WebSocketPlayer) {
 					Message:     "Player left the lobby", // More accurate message
 				},
 			})
+
+			// Send updated lobby status after player left
+			lh.sendLobbyUpdate()
 		}
 	}
 }
@@ -286,6 +296,10 @@ func (lh *LobbyHandler) handleMessage(player *models.WebSocketPlayer, message *m
 		lh.handleChatMessage(player, message)
 	case models.MSG_PING:
 		lh.handlePing(player)
+	case models.MSG_PLAYER_MOVE:
+		lh.handlePlayerMove(player, message)
+	case models.MSG_PLACE_BOMB:
+		lh.handlePlaceBomb(player, message)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}
@@ -704,6 +718,65 @@ func (lh *LobbyHandler) handleGameAction(player *models.WebSocketPlayer, message
 	case models.MSG_PLACE_BOMB:
 		PlaceBomb(lh.GameState, gamePlayer)
 	}
+}
+
+// handlePlayerMove processes player movement requests during the game
+func (lh *LobbyHandler) handlePlayerMove(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
+	if !lh.lobby.GameStarted {
+		log.Printf("Player %s tried to move but game hasn't started", player.Name)
+		return
+	}
+
+	var moveRequest struct {
+		Direction string `json:"direction"`
+	}
+
+	if messageData, ok := message.Data.(map[string]interface{}); ok {
+		if direction, exists := messageData["direction"]; exists {
+			if dirStr, ok := direction.(string); ok {
+				moveRequest.Direction = dirStr
+			}
+		}
+	}
+
+	log.Printf("🎮 Player %s moving: %s", player.Name, moveRequest.Direction)
+
+	// TODO: Implement actual game state update logic
+	// For now, just broadcast the move to all players
+	moveUpdate := &models.WebSocketMessage{
+		Type: models.MSG_GAME_UPDATE,
+		Data: map[string]interface{}{
+			"type":      "player_move",
+			"player_id": player.WebSocketID, // Use WebSocketID instead of embedded Player.ID
+			"direction": moveRequest.Direction,
+			"timestamp": time.Now().Unix(),
+		},
+	}
+
+	lh.broadcastToLobby("", moveUpdate)
+}
+
+// handlePlaceBomb processes bomb placement requests during the game
+func (lh *LobbyHandler) handlePlaceBomb(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
+	if !lh.lobby.GameStarted {
+		log.Printf("Player %s tried to place bomb but game hasn't started", player.Name)
+		return
+	}
+
+	log.Printf("💣 Player %s placing bomb", player.Name)
+
+	// TODO: Implement actual bomb placement logic
+	// For now, just broadcast the bomb placement to all players
+	bombUpdate := &models.WebSocketMessage{
+		Type: models.MSG_GAME_UPDATE,
+		Data: map[string]interface{}{
+			"type":      "bomb_placed",
+			"player_id": player.WebSocketID, // Use WebSocketID instead of embedded Player.ID
+			"timestamp": time.Now().Unix(),
+		},
+	}
+
+	lh.broadcastToLobby("", bombUpdate)
 }
 
 func generateChatID() string {

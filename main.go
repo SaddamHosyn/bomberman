@@ -13,7 +13,7 @@ func main() {
 	// Start the server
 	log.Println("🚀 Bomberman server starting on :8080")
 	log.Println("📡 WebSocket endpoint: ws://localhost:8080/ws/lobby")
-	log.Println("🌐 Frontend served at: http://localhost:8080")
+	log.Println("🌐 Frontend served at: http://localhost:3000")
 
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal("❌ Server failed to start:", err)
