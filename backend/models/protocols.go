@@ -20,6 +20,10 @@ const (
 	MSG_PLAYER_MOVE = "player_move"
 	MSG_PLACE_BOMB  = "place_bomb"
 
+	// Player action messages
+	MSG_PLAYER_MOVE = "player_move"
+	MSG_PLACE_BOMB  = "place_bomb"
+
 	// System messages
 	MSG_ERROR   = "error"
 	MSG_SUCCESS = "success"
