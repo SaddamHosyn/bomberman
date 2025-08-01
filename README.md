@@ -51,7 +51,10 @@ bomberman-dom/
 
 3. **Start the development server**
    ```bash
-   node dev-server.js
+   cd backend (backend server)
+   go run .
+
+   node dev-server.js (frontend server)
    ```
 
 4. **Open the demo**

@@ -1,6 +1,6 @@
-package backend
+package main
 
-import "bomberman-dom/backend/models"
+import "bomberman-dom/models"
 
 // MovePlayer updates a player's position based on their input and speed.
 // It moves the player one step at a time for the total move amount,
@@ -52,10 +52,10 @@ func isPositionValid(pos models.Position, movingPlayer *models.Player, gs *model
 		}
 	}
 
-	// 3. Check for collisions with Blocks
+	// 3. Check for collisions with Blocks (only non-destroyed blocks block movement)
 	for _, block := range gs.Map.Blocks {
-		if block.Position == pos {
-			return false
+		if block.Position == pos && !block.Destroyed {
+			return false // Only non-destroyed blocks block movement
 		}
 	}
 

@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"bomberman-dom/backend/models"
+	"bomberman-dom/models"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"

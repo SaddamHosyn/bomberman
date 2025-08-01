@@ -1,7 +1,7 @@
-package backend
+package main
 
 import (
-	"bomberman-dom/backend/models"
+	"bomberman-dom/models"
 	"math/rand"
 )
 

@@ -67,7 +67,7 @@ export class GameState {
             isReconnecting: false
         });
 
-        const wsUrl = `ws://localhost:8080/ws/lobby`;
+        const wsUrl = `ws://localhost:8080/ws`;
         
         try {
             // Close existing connection if any
@@ -137,11 +137,6 @@ export class GameState {
     handleWebSocketMessage(event) {
         try {
             const message = JSON.parse(event.data);
-            console.log('=== RECEIVED MESSAGE DEBUG ===');
-            console.log('Type:', message.type);
-            console.log('Data:', message.data);
-            console.log('==============================');
-
             const messageData = message.data || message.Data || {};
 
             switch (message.type) {
@@ -182,9 +177,7 @@ export class GameState {
                     break;
                 
                 case 'game_update':
-                    console.log('🔄 Processing game_update message');
                     this.handleGameUpdate(messageData);
-                    console.log('✅ game_update processed successfully');
                     break;
                 
                 case 'error':
@@ -203,14 +196,7 @@ export class GameState {
      * Handle success messages
      */
     handleSuccessMessage(messageData) {
-        console.log('✅ Success message:', messageData);
-
-        if (messageData.message?.includes('Connected successfully - please provide nickname')) {
-            console.log('📡 Connected to WebSocket, join_lobby message sent');
-        }
-        else if (messageData.message?.includes('Joined lobby successfully')) {
-            console.log('🎉 SUCCESSFULLY JOINED LOBBY!');
-
+        if (messageData.message?.includes('Joined lobby successfully')) {
             // Use the players list from server if available, otherwise create current player
             let players = [];
             if (messageData.players && Array.isArray(messageData.players)) {
@@ -241,7 +227,7 @@ export class GameState {
                 isJoining: false,
                 isReconnecting: false,
                 playerId: messageData.playerId,
-                players: players, // Use the full players list from server
+                players: players,
                 error: null
             });
         }
@@ -251,8 +237,6 @@ export class GameState {
      * Handle lobby update
      */
     handleLobbyUpdate(data) {
-        console.log('🏠 Lobby update data received:', data);
-        
         let players = [];
         if (data.lobby && data.lobby.players) {
             players = Object.values(data.lobby.players).map((player, index) => ({
@@ -269,21 +253,24 @@ export class GameState {
         let waitingTimer = null;
         let gameTimer = null;
         
-        // Handle different lobby statuses - but DON'T auto-transition to game
+        // Handle different lobby statuses
         if (data.status === "waiting_for_players" && data.timeLeft > 0) {
             waitingTimer = data.timeLeft;
-            console.log('⏳ SETTING WAITING TIMER:', waitingTimer);
         } else if (data.status === "starting" && data.timeLeft > 0) {
             gameTimer = data.timeLeft;
-            console.log('🎮 SETTING GAME TIMER:', gameTimer);
         } else if (data.status === "playing") {
-            // Game is in progress, but let game_start or game_state_update handle the transition
-            console.log('🎮 Game is playing - waiting for game_start message to transition');
             waitingTimer = null;
             gameTimer = null;
         }
         
+        // If we're on game screen but still getting lobby updates, go back to waiting room
+        let currentScreen = this.state.currentScreen;
+        if (currentScreen === 'game' && data.status !== 'playing') {
+            currentScreen = 'waiting';
+        }
+        
         this.setState({
+            currentScreen: currentScreen,
             players: players,
             playerId: data.your_player_id || data.player_id || this.state.playerId,
             waitingTimer: waitingTimer,
@@ -395,20 +382,16 @@ export class GameState {
     handleTimerUpdate(data) {
         console.log('⏱️ Timer update received:', data);
         
-        // Only transition when we get explicit game_timer of 0 AND we're in countdown phase
-        if (data.game_timer === 0 && this.state.gameTimer > 0 && this.state.currentScreen !== 'game') {
-            console.log('🎮 Game countdown finished - transitioning to game');
-            this.setState({
-                currentScreen: 'game',
-                waitingTimer: null,
-                gameTimer: null
-            });
-        } else {
-            this.setState({
-                waitingTimer: data.waiting_timer,
-                gameTimer: data.game_timer
-            });
+        // DON'T automatically transition to game screen here
+        // Wait for the actual game_start message from backend
+        if (data.game_timer === 0 && this.state.gameTimer > 0) {
+            console.log('🎮 Game countdown finished - waiting for game_start message from backend');
         }
+        
+        this.setState({
+            waitingTimer: data.waiting_timer,
+            gameTimer: data.game_timer
+        });
     }
 
     /**
@@ -426,7 +409,10 @@ export class GameState {
                 WebSocketID: player.ID,
                 nickname: player.Name,
                 lives: player.Lives,
-                position: player.Position,
+                position: {
+                    x: player.Position.X,  // Map X -> x
+                    y: player.Position.Y   // Map Y -> y
+                },
                 alive: player.Alive,
                 bombCount: player.BombCount || 1,
                 flameRange: player.FlameRange || 1,
@@ -438,15 +424,45 @@ export class GameState {
                 gameMap: {
                     width: data.Map?.Width || 15,
                     height: data.Map?.Height || 13,
-                    walls: data.Map?.Walls || [],
-                    blocks: data.Map?.Blocks || []
+                    walls: (data.Map?.Walls || []).map(wall => ({
+                        position: {
+                            x: wall.Position.X,  // Map X -> x
+                            y: wall.Position.Y   // Map Y -> y
+                        }
+                    })),
+                    blocks: (data.Map?.Blocks || []).map(block => ({
+                        position: {
+                            x: block.Position.X,  // Map X -> x
+                            y: block.Position.Y   // Map Y -> y
+                        },
+                        destroyed: block.Destroyed || false,
+                        hiddenPowerUp: block.HiddenPowerUp
+                    }))
                 },
-                bombs: data.Bombs || [],
-                powerUps: data.PowerUps || [],
+                bombs: (data.Bombs || []).map(bomb => ({
+                    id: bomb.ID,
+                    position: {
+                        x: bomb.Position.X,  // Map X -> x
+                        y: bomb.Position.Y   // Map Y -> y
+                    },
+                    ownerId: bomb.OwnerID,
+                    timer: bomb.Timer,
+                    timestamp: Date.now()
+                })),
+                powerUps: (data.PowerUps || []).map(powerUp => ({
+                    id: powerUp.ID,
+                    position: {
+                        x: powerUp.Position.X,  // Map X -> x
+                        y: powerUp.Position.Y   // Map Y -> y
+                    },
+                    type: powerUp.Type
+                })),
                 gameStatus: data.Status || 'in_progress'
             };
             
-            console.log('🎯 Parsed game state:', gameState);
+            console.log('🧱 Walls:', gameState.gameMap.walls.length);
+            console.log('📦 Blocks:', gameState.gameMap.blocks.length);
+            console.log('👥 Players:', gameState.players.map(p => `${p.nickname} at (${p.position.x},${p.position.y})`));
         }
         
         this.setState({
@@ -626,8 +642,6 @@ export class GameState {
      * Handle game state updates from server
      */
     handleGameStateUpdate(data) {
-        console.log('🎮 Game state update:', data);
-        
         // Map backend game state format to frontend format
         let updateData = {};
         
@@ -637,7 +651,10 @@ export class GameState {
                 WebSocketID: player.ID,
                 nickname: player.Name,
                 lives: player.Lives,
-                position: player.Position,
+                position: {
+                    x: player.Position.X,  // Map X -> x
+                    y: player.Position.Y   // Map Y -> y
+                },
                 alive: player.Alive,
                 bombCount: player.BombCount || 1,
                 flameRange: player.FlameRange || 1,
@@ -649,17 +666,43 @@ export class GameState {
             updateData.gameMap = {
                 width: data.Map.Width || 15,
                 height: data.Map.Height || 13,
-                walls: data.Map.Walls || [],
-                blocks: data.Map.Blocks || []
+                walls: (data.Map.Walls || []).map(wall => ({
+                    position: {
+                        x: wall.Position.X,  // Map X -> x
+                        y: wall.Position.Y   // Map Y -> y
+                    }
+                })),
+                blocks: (data.Map.Blocks || []).map(block => ({
+                    position: {
+                        x: block.Position.X,  // Map X -> x
+                        y: block.Position.Y   // Map Y -> y
+                    },
+                    destroyed: block.Destroyed || false,
+                    hiddenPowerUp: block.HiddenPowerUp
+                }))
             };
         }
         
         if (data.Bombs) {
             updateData.bombs = data.Bombs.map(bomb => ({
                 id: bomb.ID,
-                position: bomb.Position,
+                position: {
+                    x: bomb.Position.X,  // Map X -> x
+                    y: bomb.Position.Y   // Map Y -> y
+                },
                 ownerId: bomb.OwnerID,
                 timer: bomb.Timer,
+                timestamp: Date.now()
+            }));
+        }
+        
+        if (data.Flames) {
+            updateData.flames = data.Flames.map(flame => ({
+                id: flame.ID,
+                position: {
+                    x: flame.Position.X,  // Map X -> x
+                    y: flame.Position.Y   // Map Y -> y
+                },
                 timestamp: Date.now()
             }));
         }
@@ -667,7 +710,10 @@ export class GameState {
         if (data.PowerUps) {
             updateData.powerUps = data.PowerUps.map(powerUp => ({
                 id: powerUp.ID,
-                position: powerUp.Position,
+                position: {
+                    x: powerUp.Position.X,  // Map X -> x
+                    y: powerUp.Position.Y   // Map Y -> y
+                },
                 type: powerUp.Type
             }));
         }
@@ -686,11 +732,9 @@ export class GameState {
      * Handle game update messages from server
      */
     handleGameUpdate(data) {
-        console.log('🎮 Game update received:', data);
-        
         try {
             if (data.type === 'player_move') {
-                console.log(`Player ${data.player_id} moved ${data.direction}`);
+                console.log(`🚶 ${data.player_id} moved ${data.direction}`);
                 
                 // Update player position in local state
                 const updatedPlayers = [...(this.state.players || [])];
@@ -707,13 +751,13 @@ export class GameState {
                             newPos.y = Math.max(0, currentPos.y - 1);
                             break;
                         case 'down':
-                            newPos.y = Math.min(12, currentPos.y + 1); // Assuming 13 height (0-12)
+                            newPos.y = Math.min(12, currentPos.y + 1);
                             break;
                         case 'left':
                             newPos.x = Math.max(0, currentPos.x - 1);
                             break;
                         case 'right':
-                            newPos.x = Math.min(14, currentPos.x + 1); // Assuming 15 width (0-14)
+                            newPos.x = Math.min(14, currentPos.x + 1);
                             break;
                     }
                     
@@ -725,86 +769,31 @@ export class GameState {
                             position: newPos
                         };
                         
-                        console.log(`🎯 Player ${data.player_id} moved from (${currentPos.x},${currentPos.y}) to (${newPos.x},${newPos.y})`);
+                        console.log(`👤 ${player.nickname}: (${currentPos.x},${currentPos.y}) → (${newPos.x},${newPos.y})`);
                         
                         // Check for power-up collection
                         this.checkPowerUpCollection(data.player_id, newPos);
                         
-                        // IMPORTANT: Force complete re-render to clear ghost players
+                        // Force complete re-render to clear ghost players
                         this.setState({
                             players: updatedPlayers,
-                            lastUpdate: Date.now() // Force re-render
+                            lastUpdate: Date.now()
                         });
                     } else {
-                        console.log(`🚫 Player ${data.player_id} cannot move to (${newPos.x},${newPos.y}) - blocked!`);
-                        // Don't update position if blocked
+                        console.log(`🚫 ${player.nickname} blocked at (${newPos.x},${newPos.y})`);
                     }
                 }
-                
-                // Find player number for consistent CSS class matching
-                const players = this.state.players || [];
-                const sortedPlayerIds = players.map(p => p.id).sort();
-                const playerIndex2 = sortedPlayerIds.indexOf(data.player_id);
-                const playerNumber = playerIndex2 >= 0 ? playerIndex2 + 1 : 1;
-                
-                console.log(`🎯 Player ${data.player_id} mapped to player number ${playerNumber}`);
-                
-                // Add temporary movement animation to the player
-                const playerElements = document.querySelectorAll(`.player.player-${playerNumber}`);
-                console.log(`🎨 Found ${playerElements.length} player elements with class .player.player-${playerNumber}`);
-                
-                playerElements.forEach(element => {
-                    element.classList.add('moving');
-                    setTimeout(() => {
-                        element.classList.remove('moving');
-                    }, 300); // Remove after animation completes
-                });
             } else if (data.type === 'bomb_placed') {
-                console.log(`Player ${data.player_id} placed a bomb`);
-                
-                // Find player who placed the bomb
-                const player = this.state.players?.find(p => p.id === data.player_id);
-                if (player && player.position) {
-                    // Check if player hasn't exceeded bomb limit
-                    const currentBombs = this.state.bombs || [];
-                    const playerBombs = currentBombs.filter(b => b.ownerId === data.player_id);
-                    const maxBombs = player.maxBombs || 1;
-                    
-                    if (playerBombs.length >= maxBombs) {
-                        console.log(`⚠️ Player ${data.player_id} has reached bomb limit (${maxBombs})`);
-                        return;
-                    }
-                    
-                    const newBomb = {
-                        id: `bomb_${Date.now()}_${Math.random()}`,
-                        position: { ...player.position },
-                        ownerId: data.player_id,
-                        timer: 3, // 3 seconds until explosion
-                        timestamp: Date.now()
-                    };
-                    
-                    this.setState({
-                        bombs: [...currentBombs, newBomb]
-                    });
-                    
-                    console.log(`💣 Bomb placed at (${player.position.x}, ${player.position.y}) (${playerBombs.length + 1}/${maxBombs})`);
-                    
-                    // Start bomb countdown timer
-                    setTimeout(() => {
-                        this.explodeBomb(newBomb.id);
-                    }, 3000);
-                }
+                console.log(`💣 ${data.player_id} placed bomb - backend will handle state update`);
+                // Don't create frontend bombs - wait for backend game_state_update
             }
             
             // Update game state if needed
             this.setState({
                 lastUpdate: data.timestamp || Date.now()
             });
-            
-            console.log('✅ handleGameUpdate completed successfully');
         } catch (error) {
             console.error('❌ Error in handleGameUpdate:', error);
-            throw error; // Re-throw to see if this is causing the issue
         }
     }
 
@@ -1001,19 +990,33 @@ export class GameState {
             return false;
         }
         
-        // Check for walls (fixed walls are at even coordinates)
-        if (x % 2 === 0 && y % 2 === 0) {
-            return false;
-        }
-        
-        // Check border walls
+        // Check for walls (boundary walls AND internal grid walls)
         if (x === 0 || x === 14 || y === 0 || y === 12) {
-            return false;
+            return false; // Boundary walls
+        }
+        if (x % 2 === 0 && y % 2 === 0) {
+            return false; // Internal grid walls
         }
         
-        // Check for destructible blocks
-        if (this.state.gameBoard) {
-            if (this.state.gameBoard[y] && this.state.gameBoard[y][x] === 'B') {
+        // Check walls from gameMap (in case backend sends different wall pattern)
+        const gameMap = this.state.gameMap;
+        if (gameMap && gameMap.walls) {
+            const wallAtPosition = gameMap.walls.find(wall => 
+                wall.position.x === x && wall.position.y === y
+            );
+            if (wallAtPosition) {
+                return false;
+            }
+        }
+        
+        // Check for non-destroyed blocks from gameMap
+        if (gameMap && gameMap.blocks) {
+            const blockingBlock = gameMap.blocks.find(block => 
+                block.position.x === x && 
+                block.position.y === y && 
+                !block.destroyed  // Only non-destroyed blocks block movement
+            );
+            if (blockingBlock) {
                 return false;
             }
         }

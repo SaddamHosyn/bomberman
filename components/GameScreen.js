@@ -78,6 +78,7 @@ function ensureGameState(state) {
         gameTimer: state.gameTimer || null,
         countdown: state.countdown || null,
         timeLeft: state.timeLeft || null,
+        stateVersion: state.lastUpdate || Date.now(), // Force re-render when state changes
         timerPhase: state.timerPhase || null,
         nickname: state.nickname || 'Player'
     };
@@ -94,7 +95,7 @@ function generateDefaultWalls() {
             if (y === 0 || y === 12 || x === 0 || x === 14) {
                 walls.push({ position: { x, y } });
             }
-            // Inner grid walls
+            // Inner grid walls (classic Bomberman pattern)
             else if (x % 2 === 0 && y % 2 === 0) {
                 walls.push({ position: { x, y } });
             }
@@ -184,7 +185,7 @@ function renderPlayerStat(player, currentPlayer, allPlayers) {
  * Render the main game board
  */
 function renderGameBoard(state, onMove, onPlaceBomb) {
-    const { gameMap, players = [], bombs = [], flames = [], powerUps = [] } = state;
+    const { gameMap, players = [], bombs = [], flames = [], powerUps = [], stateVersion = Date.now() } = state;
     
     if (!gameMap) {
         return createElement('div', { className: 'game-board loading' },
@@ -196,35 +197,53 @@ function renderGameBoard(state, onMove, onPlaceBomb) {
     setTimeout(() => {
         const container = document.querySelector('.game-board-container');
         if (container) {
-            console.log('🎯 Auto-focusing game board container for keyboard input');
             container.focus();
         }
-    }, 100);
+        
+        // MANUAL CLEANUP: Remove all existing player icons before rendering
+        const gameBoard = document.querySelector('.game-board');
+        if (gameBoard) {
+            // Remove all player elements
+            const existingPlayers = gameBoard.querySelectorAll('.player');
+            existingPlayers.forEach(player => {
+                if (player.parentNode) {
+                    player.parentNode.removeChild(player);
+                }
+            });
+            
+            // Remove has-player class from all cells
+            const playerCells = gameBoard.querySelectorAll('.has-player');
+            playerCells.forEach(cell => {
+                cell.classList.remove('has-player');
+                cell.className = 'game-cell'; // Reset to base class
+            });
+        }
+    }, 50);
     
     return createElement('div', { 
         className: 'game-board-container',
         tabindex: '0',
+        // Force complete container re-creation when any player moves
+        key: `container-${players.map(p => `${p.id}-${p.position?.x || 0}-${p.position?.y || 0}`).join('-')}-${Date.now()}`,
         onkeydown: (e) => {
-            console.log('🔤 KEY DOWN EVENT:', e.key, e.code);
             handleKeyDown(e, onMove, onPlaceBomb);
         },
         onclick: () => {
             // Focus the container when clicked to ensure keyboard events work
-            console.log('🖱️ Game board clicked - focusing for keyboard input');
             document.querySelector('.game-board-container').focus();
         }
     },
         createElement('div', { 
             className: 'game-board',
-            // FORCE COMPLETE RE-RENDER: Add key that changes when players move
-            key: `board-${players.map(p => `${p.id}-${p.position?.x || 0}-${p.position?.y || 0}`).join('-')}`,
+            // Simple key that forces re-render when any player moves  
+            key: `board-${players.map(p => `${p.id}:${p.position?.x || 0},${p.position?.y || 0}`).join('-')}`,
             style: {
                 gridTemplateColumns: `repeat(${gameMap.width || 15}, 1fr)`,
                 gridTemplateRows: `repeat(${gameMap.height || 13}, 1fr)`
             }
         },
-            // Render all board cells
-            ...renderBoardCells(gameMap, players, bombs, flames, powerUps)
+            // Render all board cells with state version for cache-busting
+            ...renderBoardCells(gameMap, players, bombs, flames, powerUps, stateVersion)
         )
     );
 }
@@ -232,12 +251,18 @@ function renderGameBoard(state, onMove, onPlaceBomb) {
 /**
  * Render all cells in the game board
  */
-function renderBoardCells(gameMap, players, bombs, flames, powerUps) {
+function renderBoardCells(gameMap, players, bombs, flames, powerUps, stateVersion) {
+    // NUCLEAR OPTION: Completely clear the board before rendering
+    const gameBoard = document.querySelector('.game-board');
+    if (gameBoard) {
+        gameBoard.innerHTML = ''; // Clear everything
+    }
+    
     const cells = [];
     
     for (let y = 0; y < gameMap.height; y++) {
         for (let x = 0; x < gameMap.width; x++) {
-            cells.push(renderCell(x, y, gameMap, players, bombs, flames, powerUps));
+            cells.push(renderCell(x, y, gameMap, players, bombs, flames, powerUps, stateVersion));
         }
     }
     
@@ -247,18 +272,25 @@ function renderBoardCells(gameMap, players, bombs, flames, powerUps) {
 /**
  * Render a single cell on the game board - OPTIMIZED for no ghosting
  */
-function renderCell(x, y, gameMap, players, bombs, flames, powerUps) {
-    const cellKey = `cell-${x}-${y}`;
+function renderCell(x, y, gameMap, players, bombs, flames, powerUps, stateVersion) {
+    // Simple but effective key that changes when positions change
+    const playerPositions = (players || []).map(p => `${p.position?.x || 0},${p.position?.y || 0}`).join('-');
+    const cellKey = `cell-${x}-${y}-${stateVersion}-${playerPositions}`;
+    
+    // Find what's actually at this position
+    const playersHere = players?.filter(p => 
+        p && p.position && p.position.x === x && p.position.y === y && p.alive
+    ) || [];
+    const bomb = bombs?.find(b => b && b.position && b.position.x === x && b.position.y === y);
+    const flame = flames?.find(f => f && f.position && f.position.x === x && f.position.y === y);
+    const powerUp = powerUps?.find(p => p && p.position && p.position.x === x && p.position.y === y);
+    
     let cellClass = 'game-cell';
     
     // IMPORTANT: Only render ONE item per cell in priority order
     // Priority: Player > Bomb > Flame > Power-up > Block > Wall > Empty
     
-    // Check for players FIRST (highest priority)
-    const playersHere = players?.filter(p => 
-        p && p.position && p.position.x === x && p.position.y === y && p.alive
-    );
-    
+    // Check for players FIRST (highest priority) - using playersHere from above
     if (playersHere && playersHere.length > 0) {
         const player = playersHere[0]; // Only render first player if multiple
         const playerNumber = getPlayerNumber(player.id, players || []);
@@ -274,8 +306,7 @@ function renderCell(x, y, gameMap, players, bombs, flames, powerUps) {
         }, getPlayerEmoji(playerNumber)));
     }
     
-    // Check for bomb (second priority)
-    const bomb = bombs?.find(b => b && b.position && b.position.x === x && b.position.y === y);
+    // Check for bomb (second priority) - using bomb from above
     if (bomb) {
         return createElement('div', {
             key: cellKey,
@@ -287,8 +318,7 @@ function renderCell(x, y, gameMap, players, bombs, flames, powerUps) {
         }, '💣'));
     }
     
-    // Check for flame (third priority)
-    const flame = flames?.find(f => f && f.position && f.position.x === x && f.position.y === y);
+    // Check for flame (third priority) - using flame from above
     if (flame) {
         return createElement('div', {
             key: cellKey,
@@ -298,8 +328,7 @@ function renderCell(x, y, gameMap, players, bombs, flames, powerUps) {
         }, createElement('div', { className: 'flame' }, '🔥'));
     }
     
-    // Check for power-up (fourth priority)
-    const powerUp = powerUps?.find(p => p && p.position && p.position.x === x && p.position.y === y);
+    // Check for power-up (fourth priority) - using powerUp from above
     if (powerUp) {
         return createElement('div', {
             key: cellKey,
@@ -470,42 +499,32 @@ function renderGameControls() {
  * Handle keyboard input for player movement and actions
  */
 function handleKeyDown(event, onMove, onPlaceBomb) {
-    console.log('🎮 handleKeyDown called with:', event.key, 'onMove:', !!onMove, 'onPlaceBomb:', !!onPlaceBomb);
-    
     // Prevent default browser behavior
     event.preventDefault();
     
     const key = event.key.toLowerCase();
-    console.log('🔤 Normalized key:', key);
     
     switch (key) {
         case 'w':
         case 'arrowup':
-            console.log('⬆️ Moving UP');
             onMove && onMove('up');
             break;
         case 's':
         case 'arrowdown':
-            console.log('⬇️ Moving DOWN');
             onMove && onMove('down');
             break;
         case 'a':
         case 'arrowleft':
-            console.log('⬅️ Moving LEFT');
             onMove && onMove('left');
             break;
         case 'd':
         case 'arrowright':
-            console.log('➡️ Moving RIGHT');
             onMove && onMove('right');
             break;
         case ' ':
         case 'space':
-            console.log('💣 Placing BOMB');
             onPlaceBomb && onPlaceBomb();
             break;
-        default:
-            console.log('❓ Unhandled key:', key);
     }
 }
 

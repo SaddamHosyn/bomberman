@@ -21,7 +21,6 @@ const app = createApp('#app');
  */
 function renderApp() {
     const state = app.getState();
-    console.log('renderApp called with currentScreen:', state.currentScreen);
 
     switch (state.currentScreen) {
         case 'nickname':
@@ -50,7 +49,6 @@ function renderApp() {
  * Handle joining the game with a nickname (demo simulation)
  */
 function handleJoinGame(nickname) {
-    console.log('handleJoinGame called with:', nickname);
     
     if (!nickname || nickname.trim().length < 2) {
         app.setState({
@@ -86,8 +84,6 @@ function handleSendMessage(message) {
  * Handle player movement in game
  */
 function handlePlayerMove(direction) {
-    console.log('🚀 handlePlayerMove called with direction:', direction);
-    console.log('🌐 gameState.sendPlayerMove exists:', typeof gameState.sendPlayerMove);
     gameState.sendPlayerMove(direction);
 }
 
@@ -95,7 +91,6 @@ function handlePlayerMove(direction) {
  * Handle bomb placement in game
  */
 function handlePlaceBomb() {
-    console.log('Place bomb');
     gameState.sendPlaceBomb();
 }
 

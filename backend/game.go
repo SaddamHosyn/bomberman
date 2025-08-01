@@ -1,6 +1,6 @@
-package backend
+package main
 
-import "bomberman-dom/backend/models"
+import "bomberman-dom/models"
 
 // NewGame initializes and returns a new GameState with players and a map.
 func NewGame(players []*models.Player) *models.GameState {

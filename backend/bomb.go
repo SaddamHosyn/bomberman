@@ -1,10 +1,10 @@
-package backend
+package main
 
-import "bomberman-dom/backend/models"
+import "bomberman-dom/models"
 
 const (
 	BombTimer = 150 // Ticks before explosion (e.g., 3 seconds at 50 ticks/sec)
-	FlameTime = 25  // Ticks for how long flames last
+	FlameTime = 100 // Ticks for how long flames last (2 seconds at 50 ticks/sec)
 )
 
 // PlaceBomb adds a new bomb to the game state at the player's position.
