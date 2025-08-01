@@ -721,6 +721,31 @@ func (lh *LobbyHandler) handleGameAction(player *models.WebSocketPlayer, message
 	}
 }
 
+// /s
+
+// // handlePlaceBomb processes bomb placement requests during the game
+// func (lh *LobbyHandler) handlePlaceBomb(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
+// 	if !lh.lobby.GameStarted {
+// 		log.Printf("Player %s tried to place bomb but game hasn't started", player.Name)
+// 		return
+// 	}
+
+// 	log.Printf("💣 Player %s placing bomb", player.Name)
+
+// 	// TODO: Implement actual bomb placement logic
+// 	// For now, just broadcast the bomb placement to all players
+// 	bombUpdate := &models.WebSocketMessage{
+// 		Type: models.MSG_GAME_STATE_UPDATE,
+// 		Data: map[string]interface{}{
+// 			"type":      "bomb_placed",
+// 			"player_id": player.WebSocketID, // Use WebSocketID instead of embedded Player.ID
+// 			"timestamp": time.Now().Unix(),
+// 		},
+// 	}
+
+// 	lh.broadcastToLobby("", bombUpdate)
+// }
+
 // handlePlayerMove processes player movement requests during the game
 func (lh *LobbyHandler) handlePlayerMove(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
 	if !lh.lobby.GameStarted {
@@ -770,65 +795,6 @@ func (lh *LobbyHandler) handlePlaceBomb(player *models.WebSocketPlayer, message 
 	// For now, just broadcast the bomb placement to all players
 	bombUpdate := &models.WebSocketMessage{
 		Type: models.MSG_GAME_STATE_UPDATE,
-		Data: map[string]interface{}{
-			"type":      "bomb_placed",
-			"player_id": player.WebSocketID, // Use WebSocketID instead of embedded Player.ID
-			"timestamp": time.Now().Unix(),
-		},
-	}
-
-	lh.broadcastToLobby("", bombUpdate)
-}
-
-// handlePlayerMove processes player movement requests during the game
-func (lh *LobbyHandler) handlePlayerMove(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
-	if !lh.lobby.GameStarted {
-		log.Printf("Player %s tried to move but game hasn't started", player.Name)
-		return
-	}
-
-	var moveRequest struct {
-		Direction string `json:"direction"`
-	}
-
-	if messageData, ok := message.Data.(map[string]interface{}); ok {
-		if direction, exists := messageData["direction"]; exists {
-			if dirStr, ok := direction.(string); ok {
-				moveRequest.Direction = dirStr
-			}
-		}
-	}
-
-	log.Printf("🎮 Player %s moving: %s", player.Name, moveRequest.Direction)
-
-	// TODO: Implement actual game state update logic
-	// For now, just broadcast the move to all players
-	moveUpdate := &models.WebSocketMessage{
-		Type: models.MSG_GAME_UPDATE,
-		Data: map[string]interface{}{
-			"type":      "player_move",
-			"player_id": player.WebSocketID, // Use WebSocketID instead of embedded Player.ID
-			"direction": moveRequest.Direction,
-			"timestamp": time.Now().Unix(),
-		},
-	}
-
-	lh.broadcastToLobby("", moveUpdate)
-}
-
-// handlePlaceBomb processes bomb placement requests during the game
-func (lh *LobbyHandler) handlePlaceBomb(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
-	if !lh.lobby.GameStarted {
-		log.Printf("Player %s tried to place bomb but game hasn't started", player.Name)
-		return
-	}
-
-	log.Printf("💣 Player %s placing bomb", player.Name)
-
-	// TODO: Implement actual bomb placement logic
-	// For now, just broadcast the bomb placement to all players
-	bombUpdate := &models.WebSocketMessage{
-		Type: models.MSG_GAME_UPDATE,
 		Data: map[string]interface{}{
 			"type":      "bomb_placed",
 			"player_id": player.WebSocketID, // Use WebSocketID instead of embedded Player.ID
