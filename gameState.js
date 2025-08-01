@@ -415,12 +415,46 @@ export class GameState {
      * Handle game start
      */
     handleGameStart(data) {
+        console.log('🎮 Game starting with data:', data);
+        
+        // Parse the backend game state if provided
+        let gameState = {};
+        if (data && data.Players) {
+            // Map backend players to frontend format
+            const players = data.Players.map((player, index) => ({
+                id: player.ID,
+                WebSocketID: player.ID,
+                nickname: player.Name,
+                lives: player.Lives,
+                position: player.Position,
+                alive: player.Alive,
+                bombCount: player.BombCount || 1,
+                flameRange: player.FlameRange || 1,
+                speed: player.Speed || 0
+            }));
+            
+            gameState = {
+                players: players,
+                gameMap: {
+                    width: data.Map?.Width || 15,
+                    height: data.Map?.Height || 13,
+                    walls: data.Map?.Walls || [],
+                    blocks: data.Map?.Blocks || []
+                },
+                bombs: data.Bombs || [],
+                powerUps: data.PowerUps || [],
+                gameStatus: data.Status || 'in_progress'
+            };
+            
+            console.log('🎯 Parsed game state:', gameState);
+        }
+        
         this.setState({
             currentScreen: 'game',
             waitingTimer: null,
-            gameTimer: null
+            gameTimer: null,
+            ...gameState
         });
-        console.log('Game starting with data:', data);
     }
 
     /**
@@ -594,16 +628,58 @@ export class GameState {
     handleGameStateUpdate(data) {
         console.log('🎮 Game state update:', data);
         
-        this.setState({
-            gameMap: data.map,
-            players: data.players,
-            bombs: data.bombs,
-            flames: data.flames,
-            powerUps: data.powerUps,
-            gameStatus: data.status,
-            winner: data.winner,
-            currentPlayer: data.players?.find(p => p.id === this.state.playerId)
-        });
+        // Map backend game state format to frontend format
+        let updateData = {};
+        
+        if (data.Players) {
+            updateData.players = data.Players.map(player => ({
+                id: player.ID,
+                WebSocketID: player.ID,
+                nickname: player.Name,
+                lives: player.Lives,
+                position: player.Position,
+                alive: player.Alive,
+                bombCount: player.BombCount || 1,
+                flameRange: player.FlameRange || 1,
+                speed: player.Speed || 0
+            }));
+        }
+        
+        if (data.Map) {
+            updateData.gameMap = {
+                width: data.Map.Width || 15,
+                height: data.Map.Height || 13,
+                walls: data.Map.Walls || [],
+                blocks: data.Map.Blocks || []
+            };
+        }
+        
+        if (data.Bombs) {
+            updateData.bombs = data.Bombs.map(bomb => ({
+                id: bomb.ID,
+                position: bomb.Position,
+                ownerId: bomb.OwnerID,
+                timer: bomb.Timer,
+                timestamp: Date.now()
+            }));
+        }
+        
+        if (data.PowerUps) {
+            updateData.powerUps = data.PowerUps.map(powerUp => ({
+                id: powerUp.ID,
+                position: powerUp.Position,
+                type: powerUp.Type
+            }));
+        }
+        
+        updateData.gameStatus = data.Status || 'in_progress';
+        updateData.lastUpdate = Date.now();
+        
+        if (updateData.players) {
+            updateData.currentPlayer = updateData.players.find(p => p.id === this.state.playerId);
+        }
+        
+        this.setState(updateData);
     }
 
     /**

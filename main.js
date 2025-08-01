@@ -86,7 +86,8 @@ function handleSendMessage(message) {
  * Handle player movement in game
  */
 function handlePlayerMove(direction) {
-    console.log('Player move:', direction);
+    console.log('🚀 handlePlayerMove called with direction:', direction);
+    console.log('🌐 gameState.sendPlayerMove exists:', typeof gameState.sendPlayerMove);
     gameState.sendPlayerMove(direction);
 }
 

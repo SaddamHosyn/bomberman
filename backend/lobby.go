@@ -770,7 +770,7 @@ func (lh *LobbyHandler) handlePlayerMove(player *models.WebSocketPlayer, message
 	// TODO: Implement actual game state update logic
 	// For now, just broadcast the move to all players
 	moveUpdate := &models.WebSocketMessage{
-		Type: models.MSG_GAME_STATE_UPDATE,
+		Type: models.MSG_GAME_UPDATE,
 		Data: map[string]interface{}{
 			"type":      "player_move",
 			"player_id": player.WebSocketID, // Use WebSocketID instead of embedded Player.ID
@@ -794,7 +794,7 @@ func (lh *LobbyHandler) handlePlaceBomb(player *models.WebSocketPlayer, message 
 	// TODO: Implement actual bomb placement logic
 	// For now, just broadcast the bomb placement to all players
 	bombUpdate := &models.WebSocketMessage{
-		Type: models.MSG_GAME_STATE_UPDATE,
+		Type: models.MSG_GAME_UPDATE,
 		Data: map[string]interface{}{
 			"type":      "bomb_placed",
 			"player_id": player.WebSocketID, // Use WebSocketID instead of embedded Player.ID

@@ -192,12 +192,25 @@ function renderGameBoard(state, onMove, onPlaceBomb) {
         );
     }
     
+    // Auto-focus the container to capture keyboard events
+    setTimeout(() => {
+        const container = document.querySelector('.game-board-container');
+        if (container) {
+            console.log('🎯 Auto-focusing game board container for keyboard input');
+            container.focus();
+        }
+    }, 100);
+    
     return createElement('div', { 
         className: 'game-board-container',
         tabindex: '0',
-        onkeydown: (e) => handleKeyDown(e, onMove, onPlaceBomb),
+        onkeydown: (e) => {
+            console.log('🔤 KEY DOWN EVENT:', e.key, e.code);
+            handleKeyDown(e, onMove, onPlaceBomb);
+        },
         onclick: () => {
             // Focus the container when clicked to ensure keyboard events work
+            console.log('🖱️ Game board clicked - focusing for keyboard input');
             document.querySelector('.game-board-container').focus();
         }
     },
@@ -457,32 +470,42 @@ function renderGameControls() {
  * Handle keyboard input for player movement and actions
  */
 function handleKeyDown(event, onMove, onPlaceBomb) {
+    console.log('🎮 handleKeyDown called with:', event.key, 'onMove:', !!onMove, 'onPlaceBomb:', !!onPlaceBomb);
+    
     // Prevent default browser behavior
     event.preventDefault();
     
     const key = event.key.toLowerCase();
+    console.log('🔤 Normalized key:', key);
     
     switch (key) {
         case 'w':
         case 'arrowup':
+            console.log('⬆️ Moving UP');
             onMove && onMove('up');
             break;
         case 's':
         case 'arrowdown':
+            console.log('⬇️ Moving DOWN');
             onMove && onMove('down');
             break;
         case 'a':
         case 'arrowleft':
+            console.log('⬅️ Moving LEFT');
             onMove && onMove('left');
             break;
         case 'd':
         case 'arrowright':
+            console.log('➡️ Moving RIGHT');
             onMove && onMove('right');
             break;
         case ' ':
         case 'space':
+            console.log('💣 Placing BOMB');
             onPlaceBomb && onPlaceBomb();
             break;
+        default:
+            console.log('❓ Unhandled key:', key);
     }
 }
 
