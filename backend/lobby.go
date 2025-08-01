@@ -1,14 +1,12 @@
-package websockets
+package backend
 
 import (
+	"bomberman-dom/backend/models"
 	"encoding/json"
+	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 	"time"
-
-	"bomberman-dom/backend/models"
-
-	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
@@ -20,8 +18,9 @@ var upgrader = websocket.Upgrader{
 }
 
 type LobbyHandler struct {
-	hub   *models.Hub
-	lobby *models.Lobby
+	hub       *models.Hub
+	lobby     *models.Lobby
+	GameState *models.GameState
 }
 
 func NewLobbyHandler() *LobbyHandler {
@@ -48,8 +47,9 @@ func NewLobbyHandler() *LobbyHandler {
 	}
 
 	lobbyHandler := &LobbyHandler{
-		hub:   hub,
-		lobby: singleLobby,
+		hub:       hub,
+		lobby:     singleLobby,
+		GameState: nil, // GameState is nil until the game starts
 	}
 
 	go lobbyHandler.run()
@@ -116,6 +116,15 @@ func (lh *LobbyHandler) unregisterPlayer(player *models.WebSocketPlayer) {
 	defer lh.hub.Mutex.Unlock()
 
 	if _, exists := lh.hub.Players[player.WebSocketID]; exists {
+		if lh.GameState != nil && lh.GameState.Status == models.InProgress {
+			for _, gamePlayer := range lh.GameState.Players {
+				if gamePlayer.ID == player.WebSocketID {
+					gamePlayer.Alive = false
+					break
+				}
+			}
+		}
+
 		lh.lobby.Mutex.Lock()
 		delete(lh.lobby.Players, player.WebSocketID)
 		playerCount := len(lh.lobby.Players)
@@ -133,14 +142,14 @@ func (lh *LobbyHandler) unregisterPlayer(player *models.WebSocketPlayer) {
 		player.IsConnected = false
 		log.Printf("❌ Player %s disconnected", player.WebSocketID)
 
-		if playerCount > 0 {
+		if !lh.lobby.GameStarted && playerCount > 0 {
 			lh.broadcastToLobby("", &models.WebSocketMessage{
 				Type: models.MSG_PLAYER_LEFT,
 				Data: &models.PlayerLeftEvent{
 					PlayerID:    player.WebSocketID,
 					Nickname:    player.Name,
 					PlayerCount: playerCount,
-					Message:     "Player left the game",
+					Message:     "Player left the lobby", // More accurate message
 				},
 			})
 		}
@@ -258,6 +267,16 @@ func (lh *LobbyHandler) writePump(player *models.WebSocketPlayer) {
 }
 
 func (lh *LobbyHandler) handleMessage(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
+
+	if lh.lobby.GameStarted && lh.GameState != nil {
+		switch message.Type {
+		case models.MSG_PLAYER_MOVE, models.MSG_PLACE_BOMB:
+			lh.handleGameAction(player, message)
+			return
+		}
+	}
+
+	// Handle lobby/chat messages
 	switch message.Type {
 	case models.MSG_JOIN_LOBBY:
 		lh.handleJoinLobby(player, message)
@@ -577,45 +596,114 @@ func (lh *LobbyHandler) startGameCountdown() {
 
 func (lh *LobbyHandler) startGame() {
 	lh.lobby.Mutex.Lock()
+
+	if lh.lobby.GameStarted {
+		lh.lobby.Mutex.Unlock()
+		return
+	}
+
 	lh.lobby.GameStarted = true
 	lh.lobby.Status = "playing"
 
-	gameStartEvent := &models.GameStartEvent{
-		LobbyID:   lh.lobby.ID,
-		Players:   lh.lobby.Players,
-		Map:       lh.generateGameMap(),
-		StartTime: time.Now(),
+	// --- Create the list of players for the game logic ---
+	gamePlayers := []*models.Player{}
+	spawnPoints := []models.Position{
+		{X: 1, Y: 1}, {X: 13, Y: 1}, {X: 1, Y: 11}, {X: 13, Y: 11},
 	}
-	lh.lobby.Mutex.Unlock()
 
+	i := 0
+	for _, wsPlayer := range lh.lobby.Players {
+		if i >= len(spawnPoints) {
+			break
+		}
+		gamePlayer := &models.Player{
+			ID:         wsPlayer.WebSocketID,
+			Name:       wsPlayer.Name,
+			Position:   spawnPoints[i],
+			Lives:      3,
+			Alive:      true,
+			BombCount:  1,
+			FlameRange: 1,
+			Speed:      0,
+		}
+		gamePlayers = append(gamePlayers, gamePlayer)
+		i++
+	}
+
+	// --- Initialize the GameState using our backend logic ---
+	lh.GameState = NewGame(gamePlayers)
+
+	// Create the message while still holding the lock
 	startMsg := &models.WebSocketMessage{
 		Type: models.MSG_GAME_START,
-		Data: gameStartEvent,
+		Data: lh.GameState,
 	}
-	lh.broadcastToLobby("", startMsg)
 
+	lh.lobby.Mutex.Unlock() // Unlock BEFORE broadcasting and starting the loop
+
+	lh.broadcastToLobby("", startMsg)
 	log.Printf("Game started in lobby %s with %d players", lh.lobby.ID, len(lh.lobby.Players))
+
+	// --- Start the main game loop ---
+	go lh.runGameLoop()
 }
 
-func (lh *LobbyHandler) generateGameMap() [][]int {
-	mapSize := 15
-	gameMap := make([][]int, mapSize)
-	for i := range gameMap {
-		gameMap[i] = make([]int, mapSize)
+// runGameLoop is the heart of the game, ticking the state forward.
+func (lh *LobbyHandler) runGameLoop() {
+	// Tick rate: 20 times per second (50ms interval)
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if lh.GameState == nil || lh.GameState.Status == models.Finished {
+			// Stop the loop if the game ends
+			// Optionally, broadcast a final game over message here
+			return
+		}
+
+		// Process one tick of the game
+		GameTick(lh.GameState)
+
+		// Broadcast the new state to all players
+		updateMsg := &models.WebSocketMessage{
+			Type: models.MSG_GAME_STATE_UPDATE,
+			Data: lh.GameState,
+		}
+		lh.broadcastToLobby("", updateMsg)
+	}
+}
+
+// handleGameAction processes player inputs during the game.
+func (lh *LobbyHandler) handleGameAction(player *models.WebSocketPlayer, message *models.WebSocketMessage) {
+	if lh.GameState == nil {
+		return
 	}
 
-	for i := 0; i < mapSize; i++ {
-		for j := 0; j < mapSize; j++ {
-			if i == 0 || i == mapSize-1 || j == 0 || j == mapSize-1 {
-				gameMap[i][j] = 1
-			}
-			if i%2 == 0 && j%2 == 0 && i != 0 && i != mapSize-1 && j != 0 && j != mapSize-1 {
-				gameMap[i][j] = 1
-			}
+	var gamePlayer *models.Player
+	for _, p := range lh.GameState.Players {
+		if p.ID == player.WebSocketID {
+			gamePlayer = p
+			break
 		}
 	}
 
-	return gameMap
+	if gamePlayer == nil || !gamePlayer.Alive {
+		return
+	}
+
+	switch message.Type {
+	case models.MSG_PLAYER_MOVE:
+		var moveRequest struct {
+			Direction string `json:"direction"`
+		}
+		dataBytes, _ := json.Marshal(message.Data)
+		if json.Unmarshal(dataBytes, &moveRequest) == nil {
+			MovePlayer(gamePlayer, moveRequest.Direction, lh.GameState)
+		}
+
+	case models.MSG_PLACE_BOMB:
+		PlaceBomb(lh.GameState, gamePlayer)
+	}
 }
 
 func generateChatID() string {

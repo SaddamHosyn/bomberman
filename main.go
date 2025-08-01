@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bomberman-dom/backend/handlers/websockets"
+	"bomberman-dom/backend"
 	"log"
 	"net/http"
 )
@@ -22,7 +22,7 @@ func main() {
 
 func setupRoutes() {
 	// Create lobby handler
-	lobbyHandler := websockets.NewLobbyHandler()
+	lobbyHandler := backend.NewLobbyHandler()
 
 	// WebSocket endpoint
 	http.HandleFunc("/ws/lobby", lobbyHandler.ServeWS)
