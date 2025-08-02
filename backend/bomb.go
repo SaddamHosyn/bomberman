@@ -146,9 +146,13 @@ func isPlayer(gs *models.GameState, pos models.Position) {
 	for _, player := range gs.Players {
 		if player.Alive && player.Position == pos {
 			player.Lives--
-			if player.Lives <= 0 {
+
+			if player.Lives > 0 {
+				// Respawn the player at their starting point.
+				player.Position = player.SpawnPoint
+			} else {
+				// The player is out of lives.
 				player.Alive = false
-				// Optional: Add scoring logic here for the bomb owner
 			}
 		}
 	}

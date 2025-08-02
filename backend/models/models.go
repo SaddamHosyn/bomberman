@@ -48,6 +48,7 @@ type Player struct {
 	Name        string
 	Lives       int
 	Position    Position
+	SpawnPoint  Position
 	BombsPlaced int
 	Alive       bool
 	Score       int

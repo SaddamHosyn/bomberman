@@ -3,10 +3,11 @@ package backend
 import (
 	"bomberman-dom/backend/models"
 	"encoding/json"
-	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
@@ -620,6 +621,7 @@ func (lh *LobbyHandler) startGame() {
 			ID:         wsPlayer.WebSocketID,
 			Name:       wsPlayer.Name,
 			Position:   spawnPoints[i],
+			SpawnPoint: spawnPoints[i],
 			Lives:      3,
 			Alive:      true,
 			BombCount:  1,
