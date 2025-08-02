@@ -28,6 +28,9 @@ func GameTick(gs *models.GameState) {
 	// 2. Update flames (countdown, removal)
 	UpdateFlames(gs) // You will need to create this function
 
+	// 3. Update player states (e.g., invincibility timers)
+	UpdatePlayers(gs)
+
 	// --- CHECK FOR INTERACTIONS ---
 	// 3. Check for players picking up power-ups
 	PowerUpPickups(gs)

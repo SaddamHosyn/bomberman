@@ -55,6 +55,7 @@ type Player struct {
 	Speed       int
 	BombCount   int
 	FlameRange  int
+	Invincible  int
 }
 
 type Position struct {

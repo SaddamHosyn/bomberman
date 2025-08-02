@@ -72,11 +72,7 @@ func isPositionValid(pos models.Position, movingPlayer *models.Player, gs *model
 		if bomb.Position == pos {
 			// A bomb is solid UNLESS the player is currently standing on it.
 			// This allows the "walk-off" mechanic but prevents walking back onto it.
-			if movingPlayer.Position == bomb.Position {
-				return true // Allow the move
-			}
-			// For all other cases (another player's bomb, or your own bomb you're not on), it's a wall.
-			return false
+			return movingPlayer.Position == bomb.Position
 		}
 	}
 
@@ -110,4 +106,13 @@ func GetWinner(gs *models.GameState) *models.Player {
 		}
 	}
 	return lastAlivePlayer // This will be the single winner, or nil if 0 are alive.
+}
+
+// UpdatePlayers handles per-tick updates for all players, like invincibility timers.
+func UpdatePlayers(gs *models.GameState) {
+	for _, player := range gs.Players {
+		if player.Invincible > 0 {
+			player.Invincible--
+		}
+	}
 }

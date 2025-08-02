@@ -3,8 +3,9 @@ package backend
 import "bomberman-dom/backend/models"
 
 const (
-	BombTimer = 150 // Ticks before explosion (e.g., 3 seconds at 50 ticks/sec)
-	FlameTime = 25  // Ticks for how long flames last
+	BombTimer         = 150 // Ticks before explosion (e.g., 3 seconds at 50 ticks/sec)
+	FlameTime         = 25  // Ticks for how long flames last
+	InvincibilityTime = 100 // Ticks for invincibility after respawn (2 seconds)
 )
 
 // PlaceBomb adds a new bomb to the game state at the player's position.
@@ -144,12 +145,13 @@ func isWall(gs *models.GameState, pos models.Position) bool {
 // their lives and returns true to stop the flame.
 func isPlayer(gs *models.GameState, pos models.Position) {
 	for _, player := range gs.Players {
-		if player.Alive && player.Position == pos {
+		// Player can only be hit if they are alive AND not invincible.
+		if player.Alive && player.Position == pos && player.Invincible <= 0 {
 			player.Lives--
-
 			if player.Lives > 0 {
 				// Respawn the player at their starting point.
 				player.Position = player.SpawnPoint
+				player.Invincible = InvincibilityTime
 			} else {
 				// The player is out of lives.
 				player.Alive = false
