@@ -14,10 +14,13 @@ const (
 
 	// Game related messages
 	MSG_GAME_START        = "game_start"
-	MSG_GAME_STATE_UPDATE = "game_state_update" // Renamed from MSG_GAME_UPDATE
+	MSG_GAME_STATE_UPDATE = "game_state_update" // Full game state updates
+	MSG_GAME_UPDATE       = "game_update"       // Individual game events (movement, bombs)
 	MSG_GAME_END          = "game_end"
-	MSG_PLAYER_MOVE       = "player_move"
-	MSG_PLACE_BOMB        = "place_bomb"
+
+	// Player action messages
+	MSG_PLAYER_MOVE = "player_move"
+	MSG_PLACE_BOMB  = "place_bomb"
 
 	// System messages
 	MSG_ERROR   = "error"

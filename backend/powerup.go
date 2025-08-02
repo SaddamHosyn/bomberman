@@ -1,7 +1,7 @@
-package backend
+package main
 
 import (
-	"bomberman-dom/backend/models"
+	"bomberman-dom/models"
 )
 
 // CheckPowerUpPickups iterates through players and active power-ups to see if any have been collected.

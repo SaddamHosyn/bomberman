@@ -1,6 +1,6 @@
-package backend
+package main
 
-import "bomberman-dom/backend/models"
+import "bomberman-dom/models"
 
 const (
 	BombTimer         = 150 // Ticks before explosion (e.g., 3 seconds at 50 ticks/sec)

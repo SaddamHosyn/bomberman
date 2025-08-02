@@ -84,7 +84,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Pure Node.js development server running at http://localhost:${PORT}`);
+    console.log(`JS development server running at http://localhost:${PORT}`);
     console.log('Using only the mini-framework - no external dependencies!');
     console.log('Serving files from:', __dirname);
 });

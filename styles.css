@@ -87,15 +87,14 @@ body {
 }
 
 .join-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(238, 90, 36, 0.4);
+    /* OPTIMIZED: Use only opacity for performance */
+    opacity: 0.9;
 }
 
 .join-button:disabled {
     background: #666;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+    opacity: 0.6;
 }
 
 /* Waiting Room */
@@ -283,20 +282,19 @@ body {
     padding: 10px 15px;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.3s ease;
+    /* OPTIMIZED: Remove transition to prevent paint operations */
     font-weight: bold;
 }
 
 .send-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 3px 10px rgba(0, 184, 148, 0.3);
+    /* OPTIMIZED: Use only opacity for performance */
+    opacity: 0.9;
 }
 
 .send-button:disabled {
     background: #666;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+    opacity: 0.6;
 }
 
 /* Responsive Design */
@@ -368,4 +366,427 @@ body {
     background: rgba(46, 204, 113, 0.2);
     border: 1px solid rgba(46, 204, 113, 0.5);
     color: #2ecc71;
+}
+
+/* ================================
+   GAME SCREEN STYLES
+   ================================ */
+
+.game-screen {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: white;
+    overflow: hidden;
+}
+
+/* Game Header */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: rgba(0, 0, 0, 0.4);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.game-title h2 {
+    font-size: 2rem;
+    margin: 0;
+    background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.game-status {
+    font-size: 1rem;
+    opacity: 0.9;
+    margin-top: 5px;
+}
+
+.players-stats {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.player-stat {
+    padding: 10px 15px;
+    border-radius: 10px;
+    backdrop-filter: blur(5px);
+    min-width: 150px;
+    transition: all 0.3s ease;
+}
+
+.player-stat.current-player {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.player-stat.dead {
+    opacity: 0.5;
+    filter: grayscale(100%);
+}
+
+.player-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.player-stats-row {
+    display: flex;
+    gap: 10px;
+    font-size: 0.9rem;
+}
+
+.stat {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.leave-button {
+    padding: 10px 20px;
+    background: linear-gradient(45deg, #ff4757, #ff3838);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    /* OPTIMIZED: Remove transition to prevent paint operations */
+}
+
+.leave-button:hover {
+    /* OPTIMIZED: Use only opacity for performance */
+    opacity: 0.9;
+}
+
+/* Game Area */
+.game-area {
+    flex: 1;
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    overflow: hidden;
+}
+
+/* Game Board */
+.game-board-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 15px;
+    padding: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    outline: none; /* Remove focus outline */
+}
+
+.game-board {
+    display: grid;
+    gap: 1px;
+    background: #2c3e50;
+    border: 3px solid #34495e;
+    border-radius: 10px;
+    padding: 5px;
+    max-width: 600px;
+    max-height: 500px;
+    aspect-ratio: 15/13;
+}
+
+/* PERFORMANCE OPTIMIZED - Minimal layers and paint operations */
+.game-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #27ae60;
+    border-radius: 2px;
+    min-width: 20px;
+    min-height: 20px;
+    font-size: 16px;
+    /* REMOVED: transition to reduce paint operations */
+    will-change: auto; /* Prevent unnecessary layer creation */
+    /* IMPORTANT: Ensure each cell completely replaces previous content */
+    overflow: hidden;
+}
+
+.game-cell.wall {
+    background: #7f8c8d;
+}
+
+.game-cell.block {
+    background: #d35400;
+}
+
+/* Cell type indicators to prevent stacking */
+.game-cell.has-player {
+    background: #2ecc71; /* Slightly different green for player cells */
+}
+
+.game-cell.has-bomb {
+    background: #e74c3c; /* Red background for bomb cells */
+}
+
+.game-cell.has-flame {
+    background: #f39c12; /* Orange background for flame cells */
+}
+
+.game-cell.has-powerup {
+    background: #9b59b6; /* Purple background for power-up cells */
+}
+
+/* Game Objects - PERFORMANCE OPTIMIZED */
+.wall-block {
+    font-size: 14px;
+    /* REMOVED: text-shadow to reduce paint complexity */
+}
+
+.destructible-block {
+    font-size: 14px;
+    /* REMOVED: text-shadow and animation to reduce layers */
+}
+
+.player {
+    font-size: 18px;
+    font-weight: bold;
+    /* REMOVED: text-shadow and continuous animation */
+    /* REMOVED: z-index to prevent layer creation */
+    position: relative;
+    /* Use transform3d for hardware acceleration when needed */
+    transform: translate3d(0, 0, 0);
+}
+
+/* Unique player icons - OPTIMIZED for minimal paint */
+.player.player-1::before {
+    content: "🤖";
+    color: #00ff00;
+    /* REMOVED: filter drop-shadow to prevent layer creation */
+}
+
+.player.player-2::before {
+    content: "👨‍🚀";
+    color: #ff4444;
+}
+
+.player.player-3::before {
+    content: "🥷";
+    color: #4444ff;
+}
+
+.player.player-4::before {
+    content: "🎭";
+    color: #ffaa00;
+}
+
+/* SIMPLIFIED movement feedback - single class, minimal animation */
+.player.moving {
+    animation: player-move 0.2s ease-out;
+}
+
+.bomb {
+    font-size: 16px;
+    /* REMOVED: continuous animation to reduce paint operations */
+    /* REMOVED: z-index to prevent layer creation */
+}
+
+.bomb.exploding {
+    animation: bomb-explode 0.3s ease-out;
+    /* will-change only during animation */
+    will-change: transform;
+}
+
+.flame {
+    font-size: 18px;
+    /* REMOVED: continuous animation */
+    /* REMOVED: z-index to prevent layer creation */
+    color: #ff6b00;
+}
+
+.power-up {
+    font-size: 14px;
+    /* REMOVED: continuous animation to reduce paint operations */
+    /* REMOVED: z-index to prevent layer creation */
+    color: #ffd93d;
+}
+
+/* Game Sidebar */
+.game-sidebar {
+    width: 250px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+    padding: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.game-sidebar h4 {
+    margin: 0 0 10px 0;
+    font-size: 1.1rem;
+    color: #ffd93d;
+}
+
+/* Mini Map */
+.mini-map {
+    display: grid;
+    gap: 1px;
+    background: #2c3e50;
+    border: 2px solid #34495e;
+    border-radius: 5px;
+    padding: 3px;
+    max-width: 150px;
+    aspect-ratio: 15/13;
+}
+
+.mini-cell {
+    background: #27ae60;
+    border-radius: 1px;
+    min-width: 8px;
+    min-height: 6px;
+}
+
+.mini-cell.mini-wall {
+    background: #7f8c8d;
+}
+
+.mini-cell.mini-block {
+    background: #d35400;
+}
+
+.mini-cell.mini-player {
+    background: #e74c3c;
+    animation: mini-player-blink 1s infinite;
+}
+
+/* Power-ups Guide */
+.power-up-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.power-up-item {
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+/* Game Info */
+.game-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.info-item {
+    padding: 5px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+/* Game Controls Help */
+.game-controls-help {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    padding: 15px;
+    margin-top: auto;
+}
+
+.controls-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.control-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+}
+
+.control-item kbd {
+    background: #34495e;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    border: 1px solid #7f8c8d;
+}
+
+/* Loading States */
+.game-board.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.loading-message {
+    font-size: 1.5rem;
+    opacity: 0.7;
+    animation: pulse 1.5s infinite;
+}
+
+/* PERFORMANCE OPTIMIZED ANIMATIONS - Hardware accelerated only */
+
+/* Single unified player movement animation */
+@keyframes player-move {
+    0% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(0, -2px, 0) scale(1.05); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* Bomb explosion - only transform and opacity */
+@keyframes bomb-explode {
+    0% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+    50% { transform: translate3d(0, 0, 0) scale(1.5); opacity: 0.8; }
+    100% { transform: translate3d(0, 0, 0) scale(0.5); opacity: 0; }
+}
+
+/* Pulse for loading only */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* REMOVED: All other complex animations to minimize layers and paint operations */
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .game-area {
+        flex-direction: column;
+        padding: 10px;
+    }
+    
+    .game-sidebar {
+        width: 100%;
+        flex-direction: row;
+        overflow-x: auto;
+    }
+    
+    .game-board {
+        max-width: 90vw;
+        max-height: 60vh;
+    }
+    
+    .players-stats {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .player-stat {
+        min-width: auto;
+        padding: 5px 10px;
+    }
 }
