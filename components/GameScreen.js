@@ -11,25 +11,34 @@ import { createElement } from '../mini-framework/VirtualDom.js';
 /**
  * Main game component that renders the game board and UI
  */
-export function GameScreen({ state, onMove, onPlaceBomb, onLeaveGame }) {
+export function GameScreen({ state, onMove, onPlaceBomb, onBackToMenu }) {
     // Add demo game state if none provided
     const gameState = ensureGameState(state);
     
-    return createElement('div', { className: 'game-screen' },
-        // Game header with player info and controls
-        renderGameHeader(gameState, onLeaveGame),
+    return createElement('div', { 
+        className: 'game-screen',
+        key: 'game-screen-v2' // Force complete refresh
+    },
+        // Game header with just title and status (NO PLAYER STATS)
+        renderGameHeader(gameState),
         
         // Main game area
         createElement('div', { className: 'game-area' },
             // Game board
             renderGameBoard(gameState, onMove, onPlaceBomb),
             
-            // Game sidebar with stats and mini-map
+            // Game sidebar with stats and mini-map (PLAYER STATS HERE)
             renderGameSidebar(gameState)
         ),
         
         // Game controls help
-        renderGameControls()
+        renderGameControls(),
+        
+        // Win popup modal (overlay style)
+        gameState.gameStatus === 'finished' ? renderWinModal(gameState, onBackToMenu) : null,
+        
+        // Win notification banner (floating at top)
+        gameState.gameStatus === 'finished' ? renderWinBanner(gameState, onBackToMenu) : null
     );
 }
 
@@ -48,7 +57,6 @@ function ensureGameState(state) {
         id: 1,
         name: state.nickname || 'Player',
         lives: 3,
-        score: 0,
         bombCount: 1,
         flameRange: 1,
         position: { x: 1, y: 1 },
@@ -61,7 +69,6 @@ function ensureGameState(state) {
         position: player.position || { x: 1, y: 1 },
         alive: player.alive !== undefined ? player.alive : true,
         lives: player.lives || 3,
-        score: player.score || 0,
         bombCount: player.bombCount || 1,
         flameRange: player.flameRange || 1
     }));
@@ -78,7 +85,6 @@ function ensureGameState(state) {
         gameTimer: state.gameTimer || null,
         countdown: state.countdown || null,
         timeLeft: state.timeLeft || null,
-        stateVersion: state.lastUpdate || Date.now(), // Force re-render when state changes
         timerPhase: state.timerPhase || null,
         nickname: state.nickname || 'Player'
     };
@@ -127,65 +133,83 @@ function generateDefaultBlocks() {
 }
 
 /**
- * Render game header with player stats and leave button
+ * Render win modal popup
  */
-function renderGameHeader(state, onLeaveGame) {
-    return createElement('div', { className: 'game-header' },
+function renderWinModal(state, onBackToMenu) {
+    const winner = state.winner;
+    const winnerName = winner ? (winner.name || winner.nickname || 'Unknown Player') : 'Draw';
+    
+    return createElement('div', { className: 'win-modal-overlay' },
+        createElement('div', { className: 'win-modal' },
+            createElement('div', { className: 'win-modal-content' },
+                createElement('h1', { className: 'win-title' }, '🎉 GAME OVER! 🎉'),
+                createElement('div', { className: 'win-message' },
+                    winner ? `${winnerName} Wins!` : 'It\'s a Draw!'
+                ),
+                createElement('button', {
+                    className: 'back-to-menu-btn',
+                    onclick: onBackToMenu
+                }, '🔄 Play Again')
+            )
+        )
+    );
+}
+
+/**
+ * Render win banner - floating notification at top of screen
+ */
+function renderWinBanner(state, onBackToMenu) {
+    const winner = state.winner;
+    const winnerName = winner ? (winner.name || winner.nickname || 'Unknown Player') : 'Nobody';
+    
+    
+        createElement('div', { 
+            style: { marginBottom: '15px', fontSize: '1.4rem' }
+        }, `🎉 ${winnerName} Wins! 🎉`),
+        
+        createElement('button', {
+            style: {
+                background: '#ff6b6b',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '20px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '1rem'
+            },
+            onclick: () => {
+                // Restart the game by going back to menu and then rejoining
+                onBackToMenu();
+            }
+        }, '🔄 Play Again');
+    }
+
+/**
+ * Render game header with just title and status
+ */
+function renderGameHeader(state) {
+    return createElement('div', { 
+        className: 'game-header',
+        key: 'header-no-players' // Force refresh without players
+    },
         createElement('div', { className: 'game-title' },
-            createElement('h2', {}, '💣 BOMBERMAN'),
+            createElement('h2', {}, 'BOMBERMAN'),
             createElement('div', { className: 'game-status' }, 
                 (state.gameStatus === 'countdown' || state.timerPhase === 'countdown') ? `Starting in ${state.countdown || state.timeLeft || '?'}...` : 
                 (state.gameStatus === 'in_progress' || state.currentScreen === 'game') ? 'GAME IN PROGRESS' :
                 (state.gameStatus === 'finished') ? `Game Over - Winner: ${state.winner?.name || 'Draw'}` : 'Waiting...'
             )
-        ),
-        
-        // Player stats
-        createElement('div', { className: 'players-stats' },
-            ...state.players.map(player => renderPlayerStat(player, state.currentPlayer, state.players))
-        ),
-        
-        // Leave game button
-        createElement('div', { className: 'game-actions' },
-            createElement('button', {
-                className: 'leave-button',
-                onclick: onLeaveGame
-            }, '🚪 Leave Game')
         )
     );
 }
-
-/**
- * Render individual player stats
- */
-function renderPlayerStat(player, currentPlayer, allPlayers) {
-    const isCurrentPlayer = player.id === currentPlayer?.id;
-    const playerNumber = getPlayerNumber(player.id, allPlayers || []);
     
-    return createElement('div', { 
-        className: `player-stat ${isCurrentPlayer ? 'current-player' : ''} ${!player.alive ? 'dead' : ''}`,
-        style: {
-            border: `2px solid ${getPlayerColor(playerNumber)}`,
-            background: isCurrentPlayer ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-        }
-    },
-        createElement('div', { className: 'player-name' }, 
-            `${getPlayerEmoji(playerNumber)} ${player.name || player.nickname || 'Unknown'}`
-        ),
-        createElement('div', { className: 'player-stats-row' },
-            createElement('span', { className: 'stat' }, `❤️ ${player.lives || 3}`),
-            createElement('span', { className: 'stat' }, `💰 ${player.score || 0}`),
-            createElement('span', { className: 'stat' }, `💣 ${player.bombCount || 1}`),
-            createElement('span', { className: 'stat' }, `🔥 ${player.flameRange || 1}`)
-        )
-    );
-}
 
 /**
  * Render the main game board
  */
 function renderGameBoard(state, onMove, onPlaceBomb) {
-    const { gameMap, players = [], bombs = [], flames = [], powerUps = [], stateVersion = Date.now() } = state;
+    const { gameMap, players = [], bombs = [], flames = [], powerUps = [] } = state;
     
     if (!gameMap) {
         return createElement('div', { className: 'game-board loading' },
@@ -199,32 +223,13 @@ function renderGameBoard(state, onMove, onPlaceBomb) {
         if (container) {
             container.focus();
         }
-        
-        // MANUAL CLEANUP: Remove all existing player icons before rendering
-        const gameBoard = document.querySelector('.game-board');
-        if (gameBoard) {
-            // Remove all player elements
-            const existingPlayers = gameBoard.querySelectorAll('.player');
-            existingPlayers.forEach(player => {
-                if (player.parentNode) {
-                    player.parentNode.removeChild(player);
-                }
-            });
-            
-            // Remove has-player class from all cells
-            const playerCells = gameBoard.querySelectorAll('.has-player');
-            playerCells.forEach(cell => {
-                cell.classList.remove('has-player');
-                cell.className = 'game-cell'; // Reset to base class
-            });
-        }
     }, 50);
     
     return createElement('div', { 
         className: 'game-board-container',
         tabindex: '0',
-        // Force complete container re-creation when any player moves
-        key: `container-${players.map(p => `${p.id}-${p.position?.x || 0}-${p.position?.y || 0}`).join('-')}-${Date.now()}`,
+        // Ultra-stable key that never changes
+        key: 'game-container-stable',
         onkeydown: (e) => {
             handleKeyDown(e, onMove, onPlaceBomb);
         },
@@ -235,15 +240,15 @@ function renderGameBoard(state, onMove, onPlaceBomb) {
     },
         createElement('div', { 
             className: 'game-board',
-            // Simple key that forces re-render when any player moves  
-            key: `board-${players.map(p => `${p.id}:${p.position?.x || 0},${p.position?.y || 0}`).join('-')}`,
+            // Ultra-stable board key that never changes
+            key: 'game-board-stable',
             style: {
                 gridTemplateColumns: `repeat(${gameMap.width || 15}, 1fr)`,
                 gridTemplateRows: `repeat(${gameMap.height || 13}, 1fr)`
             }
         },
-            // Render all board cells with state version for cache-busting
-            ...renderBoardCells(gameMap, players, bombs, flames, powerUps, stateVersion)
+            // Render all board cells without stateVersion
+            ...renderBoardCells(gameMap, players, bombs, flames, powerUps)
         )
     );
 }
@@ -251,18 +256,12 @@ function renderGameBoard(state, onMove, onPlaceBomb) {
 /**
  * Render all cells in the game board
  */
-function renderBoardCells(gameMap, players, bombs, flames, powerUps, stateVersion) {
-    // NUCLEAR OPTION: Completely clear the board before rendering
-    const gameBoard = document.querySelector('.game-board');
-    if (gameBoard) {
-        gameBoard.innerHTML = ''; // Clear everything
-    }
-    
+function renderBoardCells(gameMap, players, bombs, flames, powerUps) {
     const cells = [];
     
     for (let y = 0; y < gameMap.height; y++) {
         for (let x = 0; x < gameMap.width; x++) {
-            cells.push(renderCell(x, y, gameMap, players, bombs, flames, powerUps, stateVersion));
+            cells.push(renderCell(x, y, gameMap, players, bombs, flames, powerUps));
         }
     }
     
@@ -272,18 +271,33 @@ function renderBoardCells(gameMap, players, bombs, flames, powerUps, stateVersio
 /**
  * Render a single cell on the game board - OPTIMIZED for no ghosting
  */
-function renderCell(x, y, gameMap, players, bombs, flames, powerUps, stateVersion) {
-    // Simple but effective key that changes when positions change
-    const playerPositions = (players || []).map(p => `${p.position?.x || 0},${p.position?.y || 0}`).join('-');
-    const cellKey = `cell-${x}-${y}-${stateVersion}-${playerPositions}`;
+function renderCell(x, y, gameMap, players, bombs, flames, powerUps) {
+    // Find what's actually at this position first
+    const playersHere = (players || []).filter(p => 
+        p && p.position && 
+        typeof p.position.x === 'number' && typeof p.position.y === 'number' &&
+        p.position.x === x && p.position.y === y && p.alive
+    );
     
-    // Find what's actually at this position
-    const playersHere = players?.filter(p => 
-        p && p.position && p.position.x === x && p.position.y === y && p.alive
-    ) || [];
-    const bomb = bombs?.find(b => b && b.position && b.position.x === x && b.position.y === y);
-    const flame = flames?.find(f => f && f.position && f.position.x === x && f.position.y === y);
-    const powerUp = powerUps?.find(p => p && p.position && p.position.x === x && p.position.y === y);
+    const bomb = (bombs || []).find(b => 
+        b && b.position && 
+        typeof b.position.x === 'number' && typeof b.position.y === 'number' &&
+        b.position.x === x && b.position.y === y &&
+        b.timer > 0  // Only include bombs that haven't exploded yet
+    );
+    const flame = (flames || []).find(f => 
+        f && f.position && 
+        typeof f.position.x === 'number' && typeof f.position.y === 'number' &&
+        f.position.x === x && f.position.y === y
+    );
+    const powerUp = (powerUps || []).find(p => 
+        p && p.position && 
+        typeof p.position.x === 'number' && typeof p.position.y === 'number' &&
+        p.position.x === x && p.position.y === y
+    );
+    
+    // Ultra-simple, completely stable key
+    const cellKey = `cell-${x}-${y}`;
     
     let cellClass = 'game-cell';
     
@@ -293,17 +307,19 @@ function renderCell(x, y, gameMap, players, bombs, flames, powerUps, stateVersio
     // Check for players FIRST (highest priority) - using playersHere from above
     if (playersHere && playersHere.length > 0) {
         const player = playersHere[0]; // Only render first player if multiple
-        const playerNumber = getPlayerNumber(player.id, players || []);
-        
-        return createElement('div', {
-            key: cellKey,
-            className: `${cellClass} has-player`,
-            'data-x': x,
-            'data-y': y
-        }, createElement('div', { 
-            className: `player player-${playerNumber}`,
-            style: { color: getPlayerColor(playerNumber) }
-        }, getPlayerEmoji(playerNumber)));
+        if (player && player.id) {
+            const playerNumber = getPlayerNumber(player.id, players || []);
+            
+            return createElement('div', {
+                key: cellKey,
+                className: `${cellClass} has-player`,
+                'data-x': x,
+                'data-y': y
+            }, createElement('div', { 
+                className: `player player-${playerNumber}`,
+                style: { color: getPlayerColor(playerNumber) }
+            }, getPlayerEmoji(playerNumber)));
+        }
     }
     
     // Check for bomb (second priority) - using bomb from above
@@ -314,7 +330,7 @@ function renderCell(x, y, gameMap, players, bombs, flames, powerUps, stateVersio
             'data-x': x,
             'data-y': y
         }, createElement('div', { 
-            className: `bomb ${bomb.timer <= 1 ? 'exploding' : ''}` 
+            className: `bomb ${bomb.timer <= 10 ? 'exploding' : ''}` // Show exploding animation in last 10 ticks (0.2 seconds)
         }, '💣'));
     }
     
@@ -374,39 +390,46 @@ function renderCell(x, y, gameMap, players, bombs, flames, powerUps, stateVersio
 }
 
 /**
- * Render game sidebar with additional info
+ * Render game sidebar with ultra-minimal layers
  */
 function renderGameSidebar(state) {
-    return createElement('div', { className: 'game-sidebar' },
+    // Create a compact player info string
+    const playersInfo = state.players.map(player => {
+        const isCurrentPlayer = player.id === state.currentPlayer?.id;
+        const playerNumber = getPlayerNumber(player.id, state.players);
+        const aliveStatus = player.alive ? '' : ' [DEAD]';
+        const currentMark = isCurrentPlayer ? ' ★' : '';
+        
+        return `${getPlayerEmoji(playerNumber)} ${player.name || player.nickname || 'Unknown'}${currentMark}${aliveStatus} | ❤️${player.lives || 3}  | 💣${player.bombCount || 1} | 🔥${player.flameRange || 1}`;
+    }).join('\n');
+
+    return createElement('div', { 
+        className: 'game-sidebar',
+        key: 'sidebar-ultra-minimal'
+    },
+        // Players header and info as direct children
+        createElement('h4', {}, '👥 Players'),
+        createElement('div', { 
+            className: 'players-compact',
+            style: {
+                background: 'rgba(255, 255, 255, 0.1)',
+                padding: '8px',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                whiteSpace: 'pre-line',
+                borderLeft: '3px solid #ffd93d'
+            }
+        }, playersInfo),
+        
         // Mini-map
-        createElement('div', { className: 'mini-map-container' },
-            createElement('h4', {}, '🗺️ Mini Map'),
-            renderMiniMap(state)
-        ),
+        createElement('h4', {}, '🗺️ Mini Map'),
+        renderMiniMap(state),
         
-        // Power-ups guide
-        createElement('div', { className: 'power-ups-guide' },
-            createElement('h4', {}, '⚡ Power-ups'),
-            createElement('div', { className: 'power-up-list' },
-                createElement('div', { className: 'power-up-item' }, '👟 Speed Up'),
-                createElement('div', { className: 'power-up-item' }, '🔥 Flame Up'),
-                createElement('div', { className: 'power-up-item' }, '💣 Bomb Up')
-            )
-        ),
-        
-        // Game info
-        createElement('div', { className: 'game-info' },
-            createElement('h4', {}, 'ℹ️ Game Info'),
-            createElement('div', { className: 'info-item' }, 
-                `Map: ${state.gameMap?.width || 15}x${state.gameMap?.height || 13}`
-            ),
-            createElement('div', { className: 'info-item' }, 
-                `Players: ${state.players?.filter(p => p.alive).length || 0} alive`
-            ),
-            createElement('div', { className: 'info-item' }, 
-                `Bombs: ${state.bombs?.length || 0} active`
-            )
-        )
+        // Power-ups
+        createElement('h4', {}, '⚡ Power-ups'),
+        createElement('div', {}, '👟 Speed Up'),
+        createElement('div', {}, '🔥 Flame Up'),
+        createElement('div', {}, '💣 Bomb Up')
     );
 }
 
@@ -487,10 +510,6 @@ function renderGameControls() {
                 createElement('kbd', {}, 'SPACE'), 
                 createElement('span', {}, 'Place Bomb')
             ),
-            createElement('div', { className: 'control-item' }, 
-                createElement('kbd', {}, 'ESC'), 
-                createElement('span', {}, 'Pause/Menu')
-            )
         )
     );
 }

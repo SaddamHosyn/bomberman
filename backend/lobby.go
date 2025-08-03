@@ -366,6 +366,14 @@ func (lh *LobbyHandler) handleJoinLobby(player *models.WebSocketPlayer, message 
 
 	// Check if nickname is already taken by ACTIVE players only
 	lh.lobby.Mutex.Lock()
+
+	// Check if lobby is in countdown phase - prevent new players
+	if lh.lobby.Status == "starting" {
+		lh.lobby.Mutex.Unlock()
+		lh.sendError(player, "Game is starting - cannot join during countdown")
+		return
+	}
+
 	for _, p := range lh.lobby.Players {
 		if p.Name == joinRequest.Nickname && p.IsConnected {
 			lh.lobby.Mutex.Unlock()

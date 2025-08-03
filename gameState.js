@@ -66,7 +66,7 @@ export class GameState {
       isReconnecting: false,
     });
 
-    const wsUrl = `ws://localhost:8080/ws/lobby`;
+    const wsUrl = `ws://localhost:8080/ws`;
 
     try {
       // Close existing connection if any
@@ -179,6 +179,10 @@ export class GameState {
 
         case "game_start":
           this.handleGameStart(messageData);
+          break;
+
+        case "game_state_update":
+          this.handleGameStateUpdate(messageData);
           break;
 
         case "error":
@@ -396,6 +400,117 @@ export class GameState {
   }
 
   /**
+   * Handle game state updates from backend
+   */
+  handleGameStateUpdate(data) {
+    console.log("🎮 Game state update received:", data);
+    
+    // Map backend game state format to frontend format
+    let updateData = {};
+    
+    if (data.Players) {
+      updateData.players = data.Players.map(player => ({
+        id: player.ID,
+        WebSocketID: player.ID,
+        nickname: player.Name,
+        lives: player.Lives,
+        position: {
+          x: player.Position.X,  // Map X -> x
+          y: player.Position.Y   // Map Y -> y
+        },
+        alive: player.Alive,
+        bombCount: player.BombCount || 1,
+        flameRange: player.FlameRange || 1,
+        speed: player.Speed || 0
+      }));
+    }
+    
+    if (data.Map) {
+      updateData.gameMap = {
+        width: data.Map.Width || 15,
+        height: data.Map.Height || 13,
+        walls: (data.Map.Walls || []).map(wall => ({
+          position: {
+            x: wall.Position.X,  // Map X -> x
+            y: wall.Position.Y   // Map Y -> y
+          }
+        })),
+        blocks: (data.Map.Blocks || []).map(block => ({
+          position: {
+            x: block.Position.X,  // Map X -> x
+            y: block.Position.Y   // Map Y -> y
+          },
+          destroyed: block.Destroyed || false,
+          hiddenPowerUp: block.HiddenPowerUp
+        }))
+      };
+    }
+    
+    if (data.Bombs) {
+      updateData.bombs = data.Bombs
+        .filter(bomb => bomb.Timer > 0) // Only include active bombs
+        .map(bomb => ({
+          id: bomb.ID,
+          position: {
+            x: bomb.Position.X,  // Map X -> x
+            y: bomb.Position.Y   // Map Y -> y
+          },
+          ownerId: bomb.OwnerID,
+          timer: bomb.Timer,
+          timestamp: Date.now()
+        }));
+    }
+    
+    if (data.Flames) {
+      updateData.flames = data.Flames.map(flame => ({
+        id: flame.ID,
+        position: {
+          x: flame.Position.X,  // Map X -> x
+          y: flame.Position.Y   // Map Y -> y
+        },
+        timestamp: Date.now()
+      }));
+    }
+    
+    if (data.PowerUps) {
+      updateData.powerUps = data.PowerUps.map(powerUp => ({
+        id: powerUp.ID,
+        position: {
+          x: powerUp.Position.X,  // Map X -> x
+          y: powerUp.Position.Y   // Map Y -> y
+        },
+        type: powerUp.Type
+      }));
+    }
+    
+    // Map numeric status to string values
+    const statusMap = {
+      0: 'waiting_for_players', // WaitingForPlayers
+      1: 'countdown',           // Countdown
+      2: 'in_progress',         // InProgress
+      3: 'finished'             // Finished
+    };
+    updateData.gameStatus = statusMap[data.Status] || 'in_progress';
+    updateData.lastUpdate = Date.now();
+    
+    // Handle winner information
+    if (data.Winner) {
+      updateData.winner = {
+        id: data.Winner.ID,
+        name: data.Winner.Name,
+        nickname: data.Winner.Nickname,
+        score: data.Winner.Score || 0
+      };
+    }
+    
+    if (updateData.players) {
+      updateData.currentPlayer = updateData.players.find(p => p.id === this.state.playerId);
+    }
+    
+    this.setState(updateData);
+  }
+
+  /**
    * Handle error messages
    */
   handleError(data) {
@@ -484,6 +599,54 @@ export class GameState {
       this.setState({
         chatError: "Failed to send message",
       });
+    }
+  }
+
+  /**
+   * Send player movement command
+   */
+  sendPlayerMove(direction) {
+    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+      console.error("❌ WebSocket not connected for movement");
+      return;
+    }
+
+    const moveMessage = {
+      type: "player_move",
+      data: {
+        direction: direction
+      }
+    };
+
+    console.log("📤 Sending move command:", moveMessage);
+
+    try {
+      this.websocket.send(JSON.stringify(moveMessage));
+    } catch (error) {
+      console.error("❌ Error sending move command:", error);
+    }
+  }
+
+  /**
+   * Send bomb placement command
+   */
+  sendPlaceBomb() {
+    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+      console.error("❌ WebSocket not connected for bomb placement");
+      return;
+    }
+
+    const bombMessage = {
+      type: "place_bomb",
+      data: {}
+    };
+
+    console.log("📤 Sending bomb command:", bombMessage);
+
+    try {
+      this.websocket.send(JSON.stringify(bombMessage));
+    } catch (error) {
+      console.error("❌ Error sending bomb command:", error);
     }
   }
 

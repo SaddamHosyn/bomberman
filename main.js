@@ -38,7 +38,7 @@ function renderApp() {
                 state: state,
                 onMove: handlePlayerMove,
                 onPlaceBomb: handlePlaceBomb,
-                onLeaveGame: handleLeaveGame
+                onBackToMenu: handleBackToMenu
             });
         
         default:
@@ -95,12 +95,12 @@ function handlePlaceBomb() {
 }
 
 /**
- * Handle leaving the game
+ * Handle going back to menu from game
  */
-function handleLeaveGame() {
-    console.log('Leave game');
+function handleBackToMenu() {
+    console.log('Back to menu');
     // Return to nickname screen
-    gameState.forceStartFresh('Player left game');
+    gameState.forceStartFresh('Player returned to menu');
 }
 
 

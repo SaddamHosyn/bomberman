@@ -174,6 +174,34 @@ function updateElementInPlace(element, vnode) {
         return;
     }
     
+    // Special handling for game cells - force complete rebuild for accurate game state
+    if (element.classList.contains('game-cell')) {
+        // Clear the element completely and rebuild from scratch
+        element.innerHTML = '';
+        element.className = vnode.attrs?.className || '';
+        
+        // Set all attributes
+        if (vnode.attrs) {
+            Object.keys(vnode.attrs).forEach(key => {
+                if (key === 'className') {
+                    element.className = vnode.attrs[key];
+                } else if (key.startsWith('data-')) {
+                    element.setAttribute(key, vnode.attrs[key]);
+                } else if (!key.startsWith('on')) {
+                    element.setAttribute(key, vnode.attrs[key]);
+                }
+            });
+        }
+        
+        // Add all children
+        vnode.children.forEach(child => {
+            if (child) {
+                element.appendChild(createRealNode(child));
+            }
+        });
+        return;
+    }
+    
     // Update basic attributes
     if (vnode.attrs) {
         Object.keys(vnode.attrs).forEach(key => {
