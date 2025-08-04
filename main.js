@@ -83,8 +83,8 @@ function handleSendMessage(message) {
 /**
  * Handle player movement in game
  */
-function handlePlayerMove(direction) {
-    gameState.sendPlayerMove(direction);
+function handlePlayerMove(direction, precise = false) {
+    gameState.sendPlayerMove(direction, precise);
 }
 
 /**

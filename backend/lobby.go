@@ -719,10 +719,11 @@ func (lh *LobbyHandler) handleGameAction(player *models.WebSocketPlayer, message
 	case models.MSG_PLAYER_MOVE:
 		var moveRequest struct {
 			Direction string `json:"direction"`
+			Precise   bool   `json:"precise,omitempty"` // Optional: true for 1-step movement
 		}
 		dataBytes, _ := json.Marshal(message.Data)
 		if json.Unmarshal(dataBytes, &moveRequest) == nil {
-			MovePlayer(gamePlayer, moveRequest.Direction, lh.GameState)
+			MovePlayer(gamePlayer, moveRequest.Direction, lh.GameState, moveRequest.Precise)
 		}
 
 	case models.MSG_PLACE_BOMB:

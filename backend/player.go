@@ -5,14 +5,17 @@ import "bomberman-dom/models"
 // MovePlayer updates a player's position based on their input and speed.
 // It moves the player one step at a time for the total move amount,
 // checking for collisions at each step to prevent "tunneling" through objects.
-func MovePlayer(player *models.Player, direction string, gs *models.GameState) {
+// If preciseMov is true, the player moves only 1 step regardless of speed boosts.
+func MovePlayer(player *models.Player, direction string, gs *models.GameState, preciseMove ...bool) {
 	if !player.Alive {
 		return // Dead players can't move
 	}
 
-	// A base speed of 1 means the player moves one tile per input.
-	// Power-ups increase the number of steps taken.
+	// Determine move amount - if precise movement is requested, move only 1 step
 	moveAmount := 1 + player.Speed
+	if len(preciseMove) > 0 && preciseMove[0] {
+		moveAmount = 1 // Precise movement: always move 1 step regardless of speed
+	}
 
 	// We check each step individually to prevent jumping over walls.
 	for i := 0; i < moveAmount; i++ {

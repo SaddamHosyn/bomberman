@@ -617,7 +617,7 @@ export class GameState {
   /**
    * Send player movement command
    */
-  sendPlayerMove(direction) {
+  sendPlayerMove(direction, precise = false) {
     if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
       console.error("❌ WebSocket not connected for movement");
       return;
@@ -626,7 +626,8 @@ export class GameState {
     const moveMessage = {
       type: "player_move",
       data: {
-        direction: direction
+        direction: direction,
+        ...(precise && { precise: true }) // Only include precise field if it's true
       }
     };
 

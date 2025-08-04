@@ -203,7 +203,7 @@ function renderGameHeader(state) {
         )
     );
 }
-    
+
 
 /**
  * Render the main game board
@@ -507,6 +507,10 @@ function renderGameControls() {
                 createElement('span', {}, 'Move')
             ),
             createElement('div', { className: 'control-item' }, 
+                createElement('kbd', {}, 'Shift + WASD'), 
+                createElement('span', {}, 'Precise Move (1 step)')
+            ),
+            createElement('div', { className: 'control-item' }, 
                 createElement('kbd', {}, 'SPACE'), 
                 createElement('span', {}, 'Place Bomb')
             ),
@@ -522,23 +526,24 @@ function handleKeyDown(event, onMove, onPlaceBomb) {
     event.preventDefault();
     
     const key = event.key.toLowerCase();
+    const preciseMove = event.shiftKey; // Shift key enables precise movement (1 step at a time)
     
     switch (key) {
         case 'w':
         case 'arrowup':
-            onMove && onMove('up');
+            onMove && onMove('up', preciseMove);
             break;
         case 's':
         case 'arrowdown':
-            onMove && onMove('down');
+            onMove && onMove('down', preciseMove);
             break;
         case 'a':
         case 'arrowleft':
-            onMove && onMove('left');
+            onMove && onMove('left', preciseMove);
             break;
         case 'd':
         case 'arrowright':
-            onMove && onMove('right');
+            onMove && onMove('right', preciseMove);
             break;
         case ' ':
         case 'space':
