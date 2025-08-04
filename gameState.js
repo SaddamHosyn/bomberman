@@ -446,6 +446,7 @@ export class GameState {
       };
     }
     
+    // Handle bombs - clear array when null/undefined
     if (data.Bombs) {
       updateData.bombs = data.Bombs
         .filter(bomb => bomb.Timer > 0) // Only include active bombs
@@ -459,8 +460,12 @@ export class GameState {
           timer: bomb.Timer,
           timestamp: Date.now()
         }));
+    } else if (data.Bombs === null) {
+      // Explicitly clear bombs when backend sends null
+      updateData.bombs = [];
     }
     
+    // Handle flames - clear array when null/undefined
     if (data.Flames) {
       updateData.flames = data.Flames.map(flame => ({
         id: flame.ID,
@@ -470,8 +475,12 @@ export class GameState {
         },
         timestamp: Date.now()
       }));
+    } else if (data.Flames === null) {
+      // Explicitly clear flames when backend sends null
+      updateData.flames = [];
     }
     
+    // Handle power-ups - clear array when null/undefined
     if (data.PowerUps) {
       updateData.powerUps = data.PowerUps.map(powerUp => ({
         id: powerUp.ID,
@@ -481,6 +490,9 @@ export class GameState {
         },
         type: powerUp.Type
       }));
+    } else if (data.PowerUps === null) {
+      // Explicitly clear power-ups when backend sends null
+      updateData.powerUps = [];
     }
     
     // Map numeric status to string values
