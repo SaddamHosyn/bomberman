@@ -31,6 +31,9 @@ func MovePlayer(player *models.Player, direction string, gs *models.GameState) {
 		if isPositionValid(targetPos, player, gs) {
 			// If the next step is valid, update the player's position.
 			player.Position = targetPos
+			
+			// Check for power-up collection at each step to prevent skipping
+			checkPlayerPowerUpPickup(player, gs)
 		} else {
 			// If the path is blocked, stop moving immediately.
 			break

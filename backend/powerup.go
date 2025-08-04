@@ -37,3 +37,23 @@ func applyPowerUp(player *models.Player, powerUpType models.PowerUpType) {
 		player.Speed++
 	}
 }
+
+// checkPlayerPowerUpPickup checks if a specific player can pick up any power-up at their current position.
+// This function is called during movement to ensure power-ups aren't skipped when moving at high speed.
+func checkPlayerPowerUpPickup(player *models.Player, gs *models.GameState) {
+	if !player.Alive {
+		return
+	}
+
+	var remainingPowerUps []*models.ActivePowerUp
+	for _, powerUp := range gs.PowerUps {
+		if player.Position == powerUp.Position {
+			// Player picked up this power-up
+			applyPowerUp(player, powerUp.Type)
+		} else {
+			// Power-up remains on the map
+			remainingPowerUps = append(remainingPowerUps, powerUp)
+		}
+	}
+	gs.PowerUps = remainingPowerUps
+}
